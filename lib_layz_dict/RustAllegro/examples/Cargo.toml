@@ -1,0 +1,84 @@
+[package]
+
+name = "allegro_examples"
+version = "0.0.33" #auto
+license = "Zlib"
+repository = "https://github.com/SiegeLord/RustAllegro"
+keywords = ["examples"]
+authors = [ "SiegeLord <slabode@aim.com>" ]
+description = "Allegro 5 wrapper examples"
+build = "build.rs"
+
+[[bin]]
+
+name = "example"
+path = "example.rs"
+
+[[bin]]
+
+name = "welcome"
+path = "welcome.rs"
+
+[[bin]]
+
+name = "config_example"
+path = "config_example.rs"
+
+[[bin]]
+
+name = "audio_example"
+path = "audio_example.rs"
+
+[[bin]]
+
+name = "multiple_windows"
+path = "multiple_windows.rs"
+
+[[bin]]
+
+name = "shaders"
+path = "shaders.rs"
+
+[dependencies]
+
+getopts = "=0.2.11"
+
+[dependencies.allegro]
+
+path = "../allegro"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_font]
+
+path = "../allegro_font"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_ttf]
+
+path = "../allegro_ttf"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_image]
+
+path = "../allegro_image"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_acodec]
+
+path = "../allegro_acodec"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_audio]
+
+path = "../allegro_audio"
+version = "=0.0.33" #auto
+
+[dependencies.allegro_primitives]
+
+path = "../allegro_primitives"
+version = "=0.0.33" #auto
+
+[dependencies.allegro-sys]
+
+path = "../allegro-sys"
+version = "=0.0.33" #auto
