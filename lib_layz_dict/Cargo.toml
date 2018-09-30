@@ -1,0 +1,16 @@
+[package]
+name = "lazy_dict"
+version = "0.1.0"
+authors = ["planet"]
+
+[dependencies]
+allegro = {path="RustAllegro/allegro"}
+allegro_font = {path="RustAllegro/allegro_font"}
+log = "*"
+
+[target.'cfg(target_os="android")'.dependencies]
+jni = { version = "*", default-features = false }
+android_logger = "0.5"
+
+[lib]
+crate-type = ["dylib"]
