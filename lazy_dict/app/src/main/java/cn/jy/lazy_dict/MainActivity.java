@@ -2,6 +2,8 @@ package cn.jy.lazy_dict;
 
 import org.liballeg.android.AllegroActivity;
 
+//https://www.sisik.eu/blog/android/ndk/camera
+
 public class MainActivity extends AllegroActivity {
     static {
         System.loadLibrary("allegro");
