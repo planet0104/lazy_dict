@@ -4,12 +4,12 @@ version = "0.1.0"
 authors = ["planet"]
 
 [dependencies]
-glutin = "0.18.0"
-android_glue = "*"
-piston_window = "*"
-allegro = {path="RustAllegro/allegro"}
-allegro_font = {path="RustAllegro/allegro_font"}
-allegro_ttf = {path="RustAllegro/allegro_ttf"}
+# glutin = "0.18.0"
+# android_glue = "*"
+# piston_window = "*"
+# allegro = {path="RustAllegro/allegro"}
+# allegro_font = {path="RustAllegro/allegro_font"}
+# allegro_ttf = {path="RustAllegro/allegro_ttf"}
 png = "0.12.0"
 log = "*"
 lazy_static = "*"

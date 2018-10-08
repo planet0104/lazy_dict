@@ -31,17 +31,17 @@ import java.util.Collections;
 public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
-    static {
-        System.loadLibrary("allegro");
-        System.loadLibrary("allegro_primitives");
-        System.loadLibrary("allegro_image");
-        System.loadLibrary("allegro_font");
-        System.loadLibrary("allegro_ttf");
-        System.loadLibrary("allegro_audio");
-        System.loadLibrary("allegro_acodec");
-        System.loadLibrary("allegro_color");
-        System.loadLibrary("lazy_dict");
-    }
+//    static {
+//        System.loadLibrary("allegro");
+//        System.loadLibrary("allegro_primitives");
+//        System.loadLibrary("allegro_image");
+//        System.loadLibrary("allegro_font");
+//        System.loadLibrary("allegro_ttf");
+//        System.loadLibrary("allegro_audio");
+//        System.loadLibrary("allegro_acodec");
+//        System.loadLibrary("allegro_color");
+//        System.loadLibrary("lazy_dict");
+//    }
 
 //    public MainActivity() {
 //        super("liblazy_dict.so");
@@ -53,20 +53,20 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     private CameraCaptureSession cameraCaptureSession;
     private Handler backgroundHandler = new Handler();
 
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        TextView textView =new TextView(this);
-        textView.setText("hello!!!");
-        setContentView(textView);
-        requestCameraPermission();
-        run();
-    }
+//    @Override
+//    public void onCreate(Bundle savedInstanceState) {
+//        super.onCreate(savedInstanceState);
+//        TextView textView =new TextView(this);
+//        textView.setText("hello!!!");
+//        setContentView(textView);
+//        requestCameraPermission();
+//        run();
+//    }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-    }
+//    @Override
+//    public void onResume() {
+//        super.onResume();
+//    }
 
     private void requestCameraPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
