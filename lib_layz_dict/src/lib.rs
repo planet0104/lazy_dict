@@ -1,20 +1,20 @@
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
-#[macro_use] extern crate allegro;
-extern crate allegro_font;
-extern crate allegro_ttf;
+// #[macro_use] extern crate allegro;
+// extern crate allegro_font;
+// extern crate allegro_ttf;
 extern crate android_logger;
 extern crate zip;
 extern crate png;
-extern crate glutin;
-extern crate android_glue;
-extern crate piston_window;
+// extern crate glutin;
+// extern crate android_glue;
+// extern crate piston_window;
 use log::Level;
 
-use allegro::*;
-use allegro_font::*;
-use allegro_ttf::*;
+// use allegro::*;
+// use allegro_font::*;
+// use allegro_ttf::*;
 
 extern crate jni;
 extern crate jni_sys;
@@ -30,7 +30,7 @@ use std::time::Instant;
 lazy_static! {
 	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, usize, usize)>>>> = Arc::new(Mutex::new(None));
 }
-
+/*
 fn allegro_main(){
 	let core = Core::init().unwrap();
 	let font_addon = FontAddon::init(&core).unwrap();
@@ -203,20 +203,31 @@ pub static mut ANDROID_APP: *mut glutin::Context = 0 as *mut glutin::Context;
 // }
 
 
-https://github.com/jbg/conrod-android-skeleton
+//https://github.com/jbg/conrod-android-skeleton
 
 /// Adds a SyncEventHandler which will process sync events from the polling loop.
-pub fn add_sync_event_handler(handler: Box<SyncEventHandler>) {
-    let mut handlers = get_context().sync_event_handlers.lock().unwrap();
-    handlers.push(handler);
-}
+// pub fn add_sync_event_handler(handler: Box<SyncEventHandler>) {
+//     let mut handlers = get_context().sync_event_handlers.lock().unwrap();
+//     handlers.push(handler);
+// }
+
+// #[no_mangle]
+// pub unsafe extern fn cargo_apk_injected_glue_add_sync_event_handler(handler: *mut ()) {
+//     let handler: Box<Box<SyncEventHandler>> = Box::from_raw(handler as *mut _);
+//     add_sync_event_handler(*handler);
+// }
+
+*/
 
 #[no_mangle]
-pub unsafe extern fn cargo_apk_injected_glue_add_sync_event_handler(handler: *mut ()) {
-    let handler: Box<Box<SyncEventHandler>> = Box::from_raw(handler as *mut _);
-    add_sync_event_handler(*handler);
+#[inline(never)]
+#[allow(non_snake_case)]
+pub extern "C" fn android_main(app: *mut ()) {
+	trace!("android_main {:?}", app);
+    //cargo_apk_injected_glue::android_main2(app as *mut _, move |c, v| unsafe { main(c, v) });
 }
 
+/*
 #[no_mangle]
 pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_run(env: JNIEnv, _: JClass){
 	let build =
@@ -256,3 +267,5 @@ pub fn main(_argc: i32, _char:*mut u8){
 	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
 	allegro_main();
 }
+
+*/
