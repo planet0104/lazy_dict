@@ -31,7 +31,7 @@ import java.util.Collections;
 public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
-//    static {
+    static {
 //        System.loadLibrary("allegro");
 //        System.loadLibrary("allegro_primitives");
 //        System.loadLibrary("allegro_image");
@@ -40,12 +40,8 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
 //        System.loadLibrary("allegro_audio");
 //        System.loadLibrary("allegro_acodec");
 //        System.loadLibrary("allegro_color");
-//        System.loadLibrary("lazy_dict");
-//    }
-
-//    public MainActivity() {
-//        super("liblazy_dict.so");
-//    }
+        //System.loadLibrary("lazy_dict");
+    }
 
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
@@ -53,20 +49,19 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     private CameraCaptureSession cameraCaptureSession;
     private Handler backgroundHandler = new Handler();
 
-//    @Override
-//    public void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//        TextView textView =new TextView(this);
-//        textView.setText("hello!!!");
-//        setContentView(textView);
-//        requestCameraPermission();
-//        run();
-//    }
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        //这个方法不会调用！！！！！！！！！！！！！！！
 
-//    @Override
-//    public void onResume() {
-//        super.onResume();
-//    }
+        TextView textView =new TextView(this);
+        textView.setText("hello!!!");
+        setContentView(textView);
+        requestCameraPermission();
+        Log.d(TAG, "winit>>调用native..");
+        winit();
+        Log.d(TAG, "winit>>调用native结束");
+    }
 
     private void requestCameraPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -142,7 +137,7 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
 
     native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
     native void sendRgb(ByteBuffer buffer, int width, int height);
-    native void run();
+    native void winit();
 
     @Override
     public void onImageAvailable(ImageReader imageReader) {
@@ -173,7 +168,7 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
                         new_buf.put((byte) g);
                         new_buf.put((byte) b);
                     }}
-                    Log.d(TAG,"nheheew_buf="+new_buf.array().length);
+                Log.d(TAG,"nheheew_buf="+new_buf.array().length);
                 sendRgb(new_buf, picw, pich);
                 Log.d(TAG,"sendRgb OK."+new_buf.array().length);
             }catch (Throwable t){

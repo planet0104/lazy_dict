@@ -7,10 +7,21 @@ extern crate lazy_static;
 extern crate android_logger;
 extern crate zip;
 extern crate png;
+extern crate android_injected_glue;
+extern crate android_glue;
 // extern crate glutin;
 // extern crate android_glue;
 // extern crate piston_window;
 use log::Level;
+extern crate azul;
+
+extern crate winit;
+extern crate piston_window;
+extern crate glutin_window;
+
+use piston_window::*;
+use glutin_window::GlutinWindow;
+use piston_window::WindowSettings;
 
 // use allegro::*;
 // use allegro_font::*;
@@ -130,6 +141,7 @@ fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
 	[r as u8, g as u8, b as u8]
 }
 
+
 #[no_mangle]
 pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:jint, height:jint){
 	trace!("send>>Java_cn_jy_lazydict_MainActivity_send");
@@ -223,33 +235,107 @@ pub static mut ANDROID_APP: *mut glutin::Context = 0 as *mut glutin::Context;
 #[inline(never)]
 #[allow(non_snake_case)]
 pub extern "C" fn android_main(app: *mut ()) {
-	trace!("android_main {:?}", app);
+	use android_logger::Filter;
+	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
     //cargo_apk_injected_glue::android_main2(app as *mut _, move |c, v| unsafe { main(c, v) });
+	trace!("winit>>android_main!!!!");
+}
+
+//use android_injected_glue::ffi::ANativeActivity;
+
+#[no_mangle]
+pub unsafe extern fn  ANativeActivity_onCreate(app: *mut (), ud: *mut (), udsize: usize) {
+	use android_logger::Filter;
+	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
+	trace!("winit>>ANativeActivity_onCreate!!!!");
+	android_injected_glue::android_main2(app as *mut _, move |c, v| unsafe { main(c, v) });
+}
+
+use azul::{prelude::*, widgets::*};
+
+struct DataModel {
+    counter: usize,
+}
+
+impl Layout for DataModel {
+    fn layout(&self, _info: WindowInfo<Self>) -> Dom<Self> {
+        let label = Label::new(format!("{}", self.counter)).dom();
+        let button = Button::with_label("Update counter").dom()
+            .with_callback(On::MouseUp, Callback(update_counter));
+
+        Dom::new(NodeType::Div)
+            .with_child(label)
+            .with_child(button)
+    }
+}
+
+fn update_counter(app_state: &mut AppState<DataModel>, _event: WindowEvent) -> UpdateScreen {
+    app_state.data.modify(|state| state.counter += 1);
+    UpdateScreen::Redraw
+}
+
+#[no_mangle]
+pub fn main(_argc: isize, _char: *const *const u8){
+	//use android_logger::Filter;
+	//android_logger::init_once(Filter::default().with_min_level(Level::Trace));
+	//allegro_main();
+	trace!("winit>>main!!!!");
+	//--------------------------------------------------------------------
+	//--------------------------------------------------------------------
+	// extern crate piston_window;
+	// use piston_window::*;
+
+	// let mut window: PistonWindow = WindowSettings::new("Hello Piston!", (640, 480))
+	// 	.exit_on_esc(true)
+	// 	.build()
+	// 	.unwrap_or_else(|e| { panic!("Failed to build PistonWindow: {}", e) });
+
+	// let window: GlutinWindow = WindowSettings::new("Glutin Window", (640, 480))
+	// 	.fullscreen(false)
+	// 	.vsync(true)
+	// 	.build()
+	// .unwrap();
+	
+	// while let Some(e) = window.next() {
+	// 	window.draw_2d(&e, |_c, g| {
+	// 		clear([0.5, 1.0, 0.5, 1.0], g);
+	// 	});
+	// }
+
+	//--------------------------------------------------------------------
+	//--------------------------------------------------------------------
+	// let mut events_loop = winit::EventsLoop::new();
+	// trace!("winit>>step 1");
+
+    // let _window = winit::WindowBuilder::new()
+    //     .with_title("A fantastic window!")
+    //     .build(&events_loop)
+    //     .unwrap();
+	// trace!("winit>>step 2");
+
+    // events_loop.run_forever(|event| {
+    //     trace!("winit>>{:?}", event);
+    //     match event {
+    //         winit::Event::WindowEvent {
+    //             event: winit::WindowEvent::CloseRequested,
+    //             ..
+    //         } => winit::ControlFlow::Break,
+    //         _ => winit::ControlFlow::Continue,
+    //     }
+    // });
+
+	let app = App::new(CounterApplication { counter: 0 }, AppConfig::default());
+    app.run(Window::new(WindowCreateOptions::default(), Css::native()).unwrap()).unwrap();
+}
+
+#[no_mangle]
+pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_winit(env: JNIEnv, _: JClass){
+	use android_logger::Filter;
+	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
+	trace!("winit>>进入!");
 }
 
 /*
-#[no_mangle]
-pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_run(env: JNIEnv, _: JClass){
-	let build =
-        WindowSettings::new("Hello World!", [512; 2])
-            .build();
-	// let context = glutin::ContextBuilder::new()
-    //     .with_vsync(true);
-	// ANDROID_APP = context;
-	if build.is_err(){
-		error!("窗口创建失败! {:?}", build.err());
-		return;
-	}
-	let mut window: PistonWindow = build.unwrap();
-    while let Some(e) = window.next() {
-        window.draw_2d(&e, |c, g| {
-            clear([0.5, 0.5, 0.5, 1.0], g);
-            rectangle([1.0, 0.0, 0.0, 1.0], // red
-                      [0.0, 0.0, 100.0, 100.0], // rectangle
-                      c.transform, g);
-        });
-    }
-}
 
 fn load_ttf_font(ttf:&TtfAddon, filename:&str, size:i32) -> Option<Font>{
 	match utils::copy_assets(filename){
