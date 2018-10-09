@@ -1,31 +1,17 @@
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
-// #[macro_use] extern crate allegro;
-// extern crate allegro_font;
-// extern crate allegro_ttf;
+#[macro_use] extern crate allegro;
+extern crate allegro_font;
+extern crate allegro_ttf;
 extern crate android_logger;
 extern crate zip;
 extern crate png;
-extern crate android_injected_glue;
-extern crate android_glue;
-// extern crate glutin;
-// extern crate android_glue;
-// extern crate piston_window;
 use log::Level;
-extern crate azul;
 
-extern crate winit;
-extern crate piston_window;
-extern crate glutin_window;
-
-use piston_window::*;
-use glutin_window::GlutinWindow;
-use piston_window::WindowSettings;
-
-// use allegro::*;
-// use allegro_font::*;
-// use allegro_ttf::*;
+use allegro::*;
+use allegro_font::*;
+use allegro_ttf::*;
 
 extern crate jni;
 extern crate jni_sys;
@@ -41,8 +27,9 @@ use std::time::Instant;
 lazy_static! {
 	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, usize, usize)>>>> = Arc::new(Mutex::new(None));
 }
-/*
+
 fn allegro_main(){
+	error!("进入allegro_main..");
 	let core = Core::init().unwrap();
 	let font_addon = FontAddon::init(&core).unwrap();
 	let ttf_addon = TtfAddon::init(&font_addon).unwrap();
@@ -65,38 +52,42 @@ fn allegro_main(){
 
 	*IMAGE_SENDER.lock().unwrap() = Some(sender);
 
-	// let logo = utils::load_assets("logo.png").unwrap();
-	// let decoder = png::Decoder::new(logo.as_slice());
-	// let (info, mut reader) = decoder.read_info().unwrap();
-    // let mut img_data = vec![0; info.buffer_size()];
-	// reader.next_frame(&mut img_data).unwrap();
+	let logo = utils::load_assets("rust.png").unwrap();
+	let decoder = png::Decoder::new(logo.as_slice());
+	let (info, mut reader) = decoder.read_info().unwrap();
+	trace!("logo.png {}x{}", info.width, info.height);
+    let mut img_data = vec![0; info.buffer_size()];
+	reader.next_frame(&mut img_data).unwrap();
 
-	let mut logo = None;
-	match utils::copy_assets("logo.png"){
-		Ok(logo_path) =>{
-			trace!("文件路径:{}", logo_path);
-			match utils::load_file(&logo_path){
-				Ok(data) => {
-					let decoder = png::Decoder::new(data.as_slice());
-					let (info, mut reader) = decoder.read_info().unwrap();
-					trace!("load_test {}x{}", info.width, info.height);
-				}
-				Err(err) => error!("load_test {:?}", err)
-			}
-			match Bitmap::load(&core, &logo_path){
-				Ok(bitmap) => logo = Some(bitmap),
-				Err(err) => error!("1.logo读取失败: {:?}", err)
-			}
-		},
-		Err(err) => error!("2.logo读取失败: {:?}", err)
+	core.set_new_bitmap_flags_flag(core.get_new_bitmap_flags().get() | 1);
+	let logo = Bitmap::new(&core, info.width as i32, info.height as i32).unwrap();
+	let monitor_info = core.get_monitor_info(0).unwrap();
+	trace!("monitor_info: {} {} {} {}", monitor_info.x1, monitor_info.y1, monitor_info.x2, monitor_info.y2);
+
+	let now = Instant::now();
+	core.set_target_bitmap(Some(&logo));
+	for x in 0..info.width{
+		for y in 0..info.height{
+			let i = (y*info.width*3+x*3) as usize;
+			//core.draw_pixel(x as f32, y as f32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
+			core.put_pixel(x as i32, y as i32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
+		}
 	}
+	//能否直接操作?
+	https://github.com/liballeg/allegro5/blob/d7757184d335d400460808eff8e0d19c9f557673/src/bitmap_pixel.c
+	
+	// let sub_bmp = logo.create_sub_bitmap(64, 64, 64, 64).unwrap();
+	// core.set_target_bitmap(Some(&*sub_bmp.upgrade().unwrap()));
+	// core.clear_to_color(Color::from_rgb_f(0.0, 1.0, 1.0));
+	core.set_target_bitmap(Some(display.get_backbuffer()));
+	trace!("画图耗时{}ms", utils::duration_to_milis(&now.elapsed()));
+	
 
 	let mut redraw = true;
 	timer.start();
 	'exit: loop{
 		//let image = receiver.try_recv();
 		if redraw && queue.is_empty(){
-			let now = Instant::now();
 			core.clear_to_color(Color::from_rgb_f(1.0, 1.0, 1.0));
 			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 1.0),
 				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32,
@@ -104,17 +95,7 @@ fn allegro_main(){
 			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 0.0),
 				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32+128.0,
 				FontAlign::Centre, "懒人字典");
-			if let Some(bitmap) = logo.as_ref(){
-				core.draw_bitmap(bitmap, 200.0, 200.0, BitmapDrawingFlags::zero());
-			}
-			// for x in 0..info.width{
-			// 	for y in 0..info.height{
-			// 		let i = (y*info.width*4+x*4) as usize;
-			// 		core.draw_pixel(x as f32, y as f32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
-			// 		//core.put_pixel(x as i32, y as i32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
-			// 	}
-			// }
-			//trace!("耗时{}ms", utils::duration_to_milis(&now.elapsed()));
+			core.draw_bitmap(&logo, 0.0, 200.0, BitmapDrawingFlags::zero());
 			core.flip_display();
 			redraw = false;
 		}
@@ -140,7 +121,6 @@ fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
 	if b>255.0 { b=255.0; }
 	[r as u8, g as u8, b as u8]
 }
-
 
 #[no_mangle]
 pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:jint, height:jint){
@@ -185,158 +165,6 @@ pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JC
 	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((src, width as usize, height as usize));
 }
 
-use piston_window::*;
-use android_glue::*;
-// use glutin::api::android::ANativeActivity;
-
-// #[repr(C)]
-// pub struct android_app {
-//     pub userData: *mut c_void,
-//     pub onAppCmd: extern fn(*mut android_app, i32),
-//     pub onInputEvent: extern fn(*mut android_app, *const AInputEvent) -> i32,
-//     pub activity: *const ANativeActivity,
-//     pub config: *const AConfiguration,
-//     pub savedState: *mut c_void,
-//     pub savedStateSize: usize,
-//     pub looper: *mut ALooper,
-//     pub inputQueue: *const AInputQueue,
-//     pub window: *const ANativeWindow,
-//     pub contentRect: ARect,
-//     pub activityState: c_int,
-//     pub destroyRequested: c_int,
-// }
-
-// #[no_mangle]
-pub static mut ANDROID_APP: *mut glutin::Context = 0 as *mut glutin::Context;
-// /// Returns the current Context.
-// fn get_context() -> &'static Context {
-//     let context = unsafe { (*ANDROID_APP).userData };
-//     unsafe { std::mem::transmute(context) }
-// }
-
-
-//https://github.com/jbg/conrod-android-skeleton
-
-/// Adds a SyncEventHandler which will process sync events from the polling loop.
-// pub fn add_sync_event_handler(handler: Box<SyncEventHandler>) {
-//     let mut handlers = get_context().sync_event_handlers.lock().unwrap();
-//     handlers.push(handler);
-// }
-
-// #[no_mangle]
-// pub unsafe extern fn cargo_apk_injected_glue_add_sync_event_handler(handler: *mut ()) {
-//     let handler: Box<Box<SyncEventHandler>> = Box::from_raw(handler as *mut _);
-//     add_sync_event_handler(*handler);
-// }
-
-*/
-
-#[no_mangle]
-#[inline(never)]
-#[allow(non_snake_case)]
-pub extern "C" fn android_main(app: *mut ()) {
-	use android_logger::Filter;
-	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-    //cargo_apk_injected_glue::android_main2(app as *mut _, move |c, v| unsafe { main(c, v) });
-	trace!("winit>>android_main!!!!");
-}
-
-//use android_injected_glue::ffi::ANativeActivity;
-
-#[no_mangle]
-pub unsafe extern fn  ANativeActivity_onCreate(app: *mut (), ud: *mut (), udsize: usize) {
-	use android_logger::Filter;
-	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-	trace!("winit>>ANativeActivity_onCreate!!!!");
-	android_injected_glue::android_main2(app as *mut _, move |c, v| unsafe { main(c, v) });
-}
-
-use azul::{prelude::*, widgets::*};
-
-struct DataModel {
-    counter: usize,
-}
-
-impl Layout for DataModel {
-    fn layout(&self, _info: WindowInfo<Self>) -> Dom<Self> {
-        let label = Label::new(format!("{}", self.counter)).dom();
-        let button = Button::with_label("Update counter").dom()
-            .with_callback(On::MouseUp, Callback(update_counter));
-
-        Dom::new(NodeType::Div)
-            .with_child(label)
-            .with_child(button)
-    }
-}
-
-fn update_counter(app_state: &mut AppState<DataModel>, _event: WindowEvent) -> UpdateScreen {
-    app_state.data.modify(|state| state.counter += 1);
-    UpdateScreen::Redraw
-}
-
-#[no_mangle]
-pub fn main(_argc: isize, _char: *const *const u8){
-	//use android_logger::Filter;
-	//android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-	//allegro_main();
-	trace!("winit>>main!!!!");
-	//--------------------------------------------------------------------
-	//--------------------------------------------------------------------
-	// extern crate piston_window;
-	// use piston_window::*;
-
-	// let mut window: PistonWindow = WindowSettings::new("Hello Piston!", (640, 480))
-	// 	.exit_on_esc(true)
-	// 	.build()
-	// 	.unwrap_or_else(|e| { panic!("Failed to build PistonWindow: {}", e) });
-
-	// let window: GlutinWindow = WindowSettings::new("Glutin Window", (640, 480))
-	// 	.fullscreen(false)
-	// 	.vsync(true)
-	// 	.build()
-	// .unwrap();
-	
-	// while let Some(e) = window.next() {
-	// 	window.draw_2d(&e, |_c, g| {
-	// 		clear([0.5, 1.0, 0.5, 1.0], g);
-	// 	});
-	// }
-
-	//--------------------------------------------------------------------
-	//--------------------------------------------------------------------
-	// let mut events_loop = winit::EventsLoop::new();
-	// trace!("winit>>step 1");
-
-    // let _window = winit::WindowBuilder::new()
-    //     .with_title("A fantastic window!")
-    //     .build(&events_loop)
-    //     .unwrap();
-	// trace!("winit>>step 2");
-
-    // events_loop.run_forever(|event| {
-    //     trace!("winit>>{:?}", event);
-    //     match event {
-    //         winit::Event::WindowEvent {
-    //             event: winit::WindowEvent::CloseRequested,
-    //             ..
-    //         } => winit::ControlFlow::Break,
-    //         _ => winit::ControlFlow::Continue,
-    //     }
-    // });
-
-	let app = App::new(CounterApplication { counter: 0 }, AppConfig::default());
-    app.run(Window::new(WindowCreateOptions::default(), Css::native()).unwrap()).unwrap();
-}
-
-#[no_mangle]
-pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_winit(env: JNIEnv, _: JClass){
-	use android_logger::Filter;
-	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-	trace!("winit>>进入!");
-}
-
-/*
-
 fn load_ttf_font(ttf:&TtfAddon, filename:&str, size:i32) -> Option<Font>{
 	match utils::copy_assets(filename){
 		Ok(ttf_path) => Some(ttf.load_ttf_font(&ttf_path, size, TtfFlags::zero()).unwrap()),
@@ -353,5 +181,3 @@ pub fn main(_argc: i32, _char:*mut u8){
 	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
 	allegro_main();
 }
-
-*/

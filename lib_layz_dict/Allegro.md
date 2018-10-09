@@ -125,6 +125,7 @@ sudo cp -r ~/allegro/include/allegro5/ /usr/include/
 
 windows配置:
 下载allegro源码到 C:\allegro
+【注意！！！！】  下载的allegro源码中base.h的版本号，必须和android项目中使用的allegro库对应！！ 修改源码以后需要cargo clean
 添加环境变量
 ALLEGRO_INCLUDE_DIR=C:/allegro/include
 ALLEGRO_LINK_DIR=C:/allegro/lib

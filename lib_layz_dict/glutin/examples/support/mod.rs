@@ -84,9 +84,12 @@ static VERTEX_DATA: [f32; 15] = [
 const VS_SRC: &'static [u8] = b"
 #version 100
 precision mediump float;
+
 attribute vec2 position;
 attribute vec3 color;
+
 varying vec3 v_color;
+
 void main() {
     gl_Position = vec4(position, 0.0, 1.0);
     v_color = color;
@@ -96,7 +99,9 @@ void main() {
 const FS_SRC: &'static [u8] = b"
 #version 100
 precision mediump float;
+
 varying vec3 v_color;
+
 void main() {
     gl_FragColor = vec4(v_color, 1.0);
 }
