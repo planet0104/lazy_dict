@@ -498,6 +498,13 @@ impl Core
 		}
 	}
 
+	pub fn set_new_bitmap_flags_flag(&self, flags: u32)
+	{
+		unsafe {
+			al_set_new_bitmap_flags(flags as c_int);
+		}
+	}
+
 	pub fn get_new_bitmap_flags(&self) -> BitmapFlags
 	{
 		unsafe { mem::transmute(al_get_new_bitmap_flags() as u32) }

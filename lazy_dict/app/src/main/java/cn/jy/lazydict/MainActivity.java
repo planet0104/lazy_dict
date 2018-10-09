@@ -1,8 +1,6 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
-import android.app.Activity;
-import android.app.NativeActivity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -23,24 +21,28 @@ import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.liballeg.android.AllegroActivity;
+
 import java.nio.ByteBuffer;
 import java.util.Collections;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
-public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
+public class MainActivity extends AllegroActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
     static {
-//        System.loadLibrary("allegro");
-//        System.loadLibrary("allegro_primitives");
-//        System.loadLibrary("allegro_image");
-//        System.loadLibrary("allegro_font");
-//        System.loadLibrary("allegro_ttf");
-//        System.loadLibrary("allegro_audio");
-//        System.loadLibrary("allegro_acodec");
-//        System.loadLibrary("allegro_color");
-        //System.loadLibrary("lazy_dict");
+        System.loadLibrary("allegro");
+        System.loadLibrary("allegro_primitives");
+        System.loadLibrary("allegro_image");
+        System.loadLibrary("allegro_font");
+        System.loadLibrary("allegro_ttf");
+        System.loadLibrary("allegro_audio");
+        System.loadLibrary("allegro_acodec");
+        System.loadLibrary("allegro_color");
+    }
+    public MainActivity() {
+        super("liblazy_dict.so");
     }
 
     private CameraManager cameraManager;
@@ -52,15 +54,10 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //这个方法不会调用！！！！！！！！！！！！！！！
-
         TextView textView =new TextView(this);
         textView.setText("hello!!!");
         setContentView(textView);
         requestCameraPermission();
-        Log.d(TAG, "winit>>调用native..");
-        winit();
-        Log.d(TAG, "winit>>调用native结束");
     }
 
     private void requestCameraPermission() {
@@ -137,7 +134,6 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
 
     native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
     native void sendRgb(ByteBuffer buffer, int width, int height);
-    native void winit();
 
     @Override
     public void onImageAvailable(ImageReader imageReader) {
