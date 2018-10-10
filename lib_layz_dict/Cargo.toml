@@ -18,7 +18,6 @@ png = "*"
 log = "*"
 lazy_static = "*"
 jni = { version = "*", default-features = false }
-jni-sys = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
