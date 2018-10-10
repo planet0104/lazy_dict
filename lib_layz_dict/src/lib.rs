@@ -2,7 +2,7 @@ extern crate libc;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
-#[macro_use] extern crate allegro;
+extern crate allegro;
 extern crate allegro_sys;
 extern crate allegro_font;
 extern crate allegro_ttf;
@@ -16,18 +16,17 @@ use allegro_font::*;
 use allegro_ttf::*;
 
 extern crate jni;
-extern crate jni_sys;
-use self::jni::JNIEnv;
+use jni::sys::jint;
+use jni::JNIEnv;
 use self::jni::objects::{JClass, JValue, JByteBuffer};
-use jni_sys::{jint, jobject};
 
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 mod utils;
 use std::time::Instant;
 
 lazy_static! {
-	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, usize, usize)>>>> = Arc::new(Mutex::new(None));
+	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, i32, i32)>>>> = Arc::new(Mutex::new(None));
 }
 
 fn allegro_main(){
@@ -54,33 +53,16 @@ fn allegro_main(){
 
 	*IMAGE_SENDER.lock().unwrap() = Some(sender);
 
-	let logo = utils::load_assets("rust.png").unwrap();
-	let decoder = png::Decoder::new(logo.as_slice());
-	let (info, mut reader) = decoder.read_info().unwrap();
-	trace!("logo.png {}x{}", info.width, info.height);
-    let mut img_data = vec![0; info.buffer_size()];
-	reader.next_frame(&mut img_data).unwrap();
-
-	//let mut now = Instant::now();
+	// let logo = utils::load_assets("rust.png").unwrap();
+	// let decoder = png::Decoder::new(logo.as_slice());
+	// let (info, mut reader) = decoder.read_info().unwrap();
+	// trace!("logo.png {}x{}", info.width, info.height);
+    // let mut img_data = vec![0; info.buffer_size()];
+	// reader.next_frame(&mut img_data).unwrap();
 
 	//创建内存位图
 	core.set_new_bitmap_flags_flag(core.get_new_bitmap_flags().get() | 1);
-	let logo = Bitmap::new(&core, info.width as i32, info.height as i32).unwrap();
-	unsafe{
-		//复制图像数据
-		let p = logo.get_allegro_bitmap();
-		let lock = allegro_sys::al_lock_bitmap(p, allegro_sys::ALLEGRO_PIXEL_FORMAT_RGB_888 as i32, allegro_sys::ALLEGRO_LOCK_READWRITE as i32);
-		let dat: *mut u8 = (*lock).data as *mut u8;
-		let slice:&mut [u8] = ::std::slice::from_raw_parts_mut(dat, img_data.len());
-		//slice顺序 b,g,r
-		//img_data的顺序 rgb
-		for i in (0..img_data.len()).step_by(3){
-			slice[i] = img_data[i+2];
-			slice[i+1] = img_data[i+1];
-			slice[i+2] = img_data[i];
-		}
-		allegro_sys::al_unlock_bitmap(p);
-	}
+	let mut capture = None;
 	
 	let mut redraw = true;
 	timer.start();
@@ -94,8 +76,35 @@ fn allegro_main(){
 			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 0.0),
 				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32+128.0,
 				FontAlign::Centre, "懒人字典");
+
+			//更新图片
+			let now = Instant::now();
+			if let Ok((data, width, height)) = receiver.try_recv(){
+				if capture.is_none(){
+					capture = Some(Bitmap::new(&core, width, height).unwrap());
+				}
+				let bitmap = capture.as_ref().unwrap();
+				//复制图像数据
+				let a_bmp = bitmap.get_allegro_bitmap();
+				let lock = unsafe{ allegro_sys::al_lock_bitmap(a_bmp, allegro_sys::ALLEGRO_PIXEL_FORMAT_RGB_888 as i32, allegro_sys::ALLEGRO_LOCK_READWRITE as i32) };
+				let dat: *mut u8 = unsafe{ (*lock).data as *mut u8 };
+				let slice:&mut [u8] = unsafe{ ::std::slice::from_raw_parts_mut(dat, data.len()) };
+				//slice顺序 b,g,r
+				//data的顺序 rgb
+				for i in (0..data.len()).step_by(3){
+					slice[i] = data[i+2];
+					slice[i+1] = data[i+1];
+					slice[i+2] = data[i];
+				}
+				unsafe{ allegro_sys::al_unlock_bitmap(a_bmp) };
+			}
+			//显示图片
+			if capture.is_some(){
+				let cap = capture.as_ref().unwrap();
+				core.draw_bitmap(cap, 0.0, 0.0, BitmapDrawingFlags::zero());
+			}
 			//core.draw_scaled_bitmap(&logo, 0.0, 0.0, 10.0, 10.0, 0.0, 0.0, 100.0, 100.0, BitmapDrawingFlags::zero());
-			core.draw_bitmap(&logo, 0.0, 0.0, BitmapDrawingFlags::zero());
+			trace!("图片耗时 {}ms", utils::duration_to_milis(&now.elapsed()));
 			core.flip_display();
 			redraw = false;
 		}
@@ -123,9 +132,9 @@ fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
 }
 
 #[no_mangle]
-pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:jint, height:jint){
+pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:JValue, height:JValue){
 	trace!("send>>Java_cn_jy_lazydict_MainActivity_send");
-	let (width, height) = (width as i32, height as i32);
+	let (width, height) = (width.i().unwrap(), height.i().unwrap());
 	let y_src = env.get_direct_buffer_address(y).unwrap();
 	let u_src = env.get_direct_buffer_address(u).unwrap();
 	let v_src = env.get_direct_buffer_address(v).unwrap();
@@ -154,15 +163,17 @@ pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClas
 			rgb[index as usize+2] = tmp[2];
 		}
 	}
-	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((rgb, width as usize, height as usize));
+	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((rgb, width, height));
 }
 
 #[no_mangle]
-pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JClass, src: JByteBuffer, width:jint, height:jint){
+#[allow(non_snake_case)]
+pub extern "C" fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JClass, src: JByteBuffer, width:jint, height:jint){
+	trace!("sendRgb>>>>>>>");
 	let ptr_src = env.get_direct_buffer_address(src).unwrap();
 	let mut src = vec![];
 	src.extend_from_slice(ptr_src);
-	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((src, width as usize, height as usize));
+	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((src, width, height));
 }
 
 fn load_ttf_font(ttf:&TtfAddon, filename:&str, size:i32) -> Option<Font>{

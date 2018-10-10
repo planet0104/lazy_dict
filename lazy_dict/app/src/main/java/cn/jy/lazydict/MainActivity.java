@@ -23,6 +23,7 @@ import android.widget.Toast;
 
 import org.liballeg.android.AllegroActivity;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
@@ -41,7 +42,6 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         System.loadLibrary("allegro_audio");
         System.loadLibrary("allegro_acodec");
         System.loadLibrary("allegro_color");
-        System.loadLibrary("SDL2");
     }
     public MainActivity() {
         super("liblazy_dict.so");
@@ -60,6 +60,34 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         textView.setText("hello!!!");
         setContentView(textView);
         requestCameraPermission();
+
+
+        Bitmap bitmap = null;
+        try {
+            bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        int picw = bitmap.getWidth();
+        int pich = bitmap.getHeight();
+        int[] pix = new int[picw * pich];
+        bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
+        Log.d(TAG, "total="+picw*pich*3);
+        ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
+        for (int y = 0; y < pich; y++){
+            for (int x = 0; x < picw; x++)
+            {
+                int index = y * picw + x;
+                int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
+                int g = (pix[index] >> 8) & 0xff;
+                int b = pix[index] & 0xff;
+                new_buf.put((byte) r);
+                new_buf.put((byte) g);
+                new_buf.put((byte) b);
+            }}
+        Log.d(TAG,"new_buf="+new_buf.array().length);
+        sendRgb(new_buf, picw, pich);
+        Log.d(TAG,"sendRgb OK."+new_buf.array().length);
     }
 
     private void requestCameraPermission() {
@@ -134,7 +162,7 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         }
     }
 
-    native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
+    //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
     native void sendRgb(ByteBuffer buffer, int width, int height);
 
     @Override
