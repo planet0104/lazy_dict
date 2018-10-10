@@ -1,7 +1,9 @@
+extern crate libc;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate allegro;
+extern crate allegro_sys;
 extern crate allegro_font;
 extern crate allegro_ttf;
 extern crate android_logger;
@@ -59,30 +61,27 @@ fn allegro_main(){
     let mut img_data = vec![0; info.buffer_size()];
 	reader.next_frame(&mut img_data).unwrap();
 
+	//let mut now = Instant::now();
+
+	//创建内存位图
 	core.set_new_bitmap_flags_flag(core.get_new_bitmap_flags().get() | 1);
 	let logo = Bitmap::new(&core, info.width as i32, info.height as i32).unwrap();
-	let monitor_info = core.get_monitor_info(0).unwrap();
-	trace!("monitor_info: {} {} {} {}", monitor_info.x1, monitor_info.y1, monitor_info.x2, monitor_info.y2);
-
-	let now = Instant::now();
-	core.set_target_bitmap(Some(&logo));
-	for x in 0..info.width{
-		for y in 0..info.height{
-			let i = (y*info.width*3+x*3) as usize;
-			//core.draw_pixel(x as f32, y as f32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
-			core.put_pixel(x as i32, y as i32, Color::from_rgb(img_data[i], img_data[i+1], img_data[i+2]));
+	unsafe{
+		//复制图像数据
+		let p = logo.get_allegro_bitmap();
+		let lock = allegro_sys::al_lock_bitmap(p, allegro_sys::ALLEGRO_PIXEL_FORMAT_RGB_888 as i32, allegro_sys::ALLEGRO_LOCK_READWRITE as i32);
+		let dat: *mut u8 = (*lock).data as *mut u8;
+		let slice:&mut [u8] = ::std::slice::from_raw_parts_mut(dat, img_data.len());
+		//slice顺序 b,g,r
+		//img_data的顺序 rgb
+		for i in (0..img_data.len()).step_by(3){
+			slice[i] = img_data[i+2];
+			slice[i+1] = img_data[i+1];
+			slice[i+2] = img_data[i];
 		}
+		allegro_sys::al_unlock_bitmap(p);
 	}
-	//能否直接操作?
-	https://github.com/liballeg/allegro5/blob/d7757184d335d400460808eff8e0d19c9f557673/src/bitmap_pixel.c
 	
-	// let sub_bmp = logo.create_sub_bitmap(64, 64, 64, 64).unwrap();
-	// core.set_target_bitmap(Some(&*sub_bmp.upgrade().unwrap()));
-	// core.clear_to_color(Color::from_rgb_f(0.0, 1.0, 1.0));
-	core.set_target_bitmap(Some(display.get_backbuffer()));
-	trace!("画图耗时{}ms", utils::duration_to_milis(&now.elapsed()));
-	
-
 	let mut redraw = true;
 	timer.start();
 	'exit: loop{
@@ -95,7 +94,8 @@ fn allegro_main(){
 			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 0.0),
 				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32+128.0,
 				FontAlign::Centre, "懒人字典");
-			core.draw_bitmap(&logo, 0.0, 200.0, BitmapDrawingFlags::zero());
+			//core.draw_scaled_bitmap(&logo, 0.0, 0.0, 10.0, 10.0, 0.0, 0.0, 100.0, 100.0, BitmapDrawingFlags::zero());
+			core.draw_bitmap(&logo, 0.0, 0.0, BitmapDrawingFlags::zero());
 			core.flip_display();
 			redraw = false;
 		}
