@@ -9,9 +9,11 @@ authors = ["planet"]
 # gl = "*"
 # android_glue = "*"
 # piston_window = "*"
+libc = "*"
 allegro = {path="RustAllegro/allegro"}
 allegro_font = {path="RustAllegro/allegro_font"}
 allegro_ttf = {path="RustAllegro/allegro_ttf"}
+allegro-sys = {path="RustAllegro/allegro-sys"}
 png = "*"
 log = "*"
 lazy_static = "*"
@@ -20,9 +22,9 @@ jni-sys = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
-winit = "*"
-android_injected_glue = "*"
-android_glue = "*"
+# winit = "*"
+# android_injected_glue = "*"
+# android_glue = "*"
 # piston_window = "*"
 # pistoncore-window = "*"
 # gfx = "*"

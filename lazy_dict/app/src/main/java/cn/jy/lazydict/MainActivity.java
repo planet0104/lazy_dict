@@ -35,11 +35,13 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         System.loadLibrary("allegro");
         System.loadLibrary("allegro_primitives");
         System.loadLibrary("allegro_image");
+        System.loadLibrary("allegro_memfile");
         System.loadLibrary("allegro_font");
         System.loadLibrary("allegro_ttf");
         System.loadLibrary("allegro_audio");
         System.loadLibrary("allegro_acodec");
         System.loadLibrary("allegro_color");
+        System.loadLibrary("SDL2");
     }
     public MainActivity() {
         super("liblazy_dict.so");
