@@ -1,120 +1,71 @@
-extern crate libc;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
-extern crate allegro;
-extern crate allegro_sys;
-extern crate allegro_font;
-extern crate allegro_ttf;
 extern crate android_logger;
 extern crate zip;
 extern crate png;
+extern crate android_injected_glue;
+extern crate android_glue;
 use log::Level;
-
-use allegro::*;
-use allegro_font::*;
-use allegro_ttf::*;
-
+extern crate winit;
 extern crate jni;
-use jni::sys::jint;
-use jni::JNIEnv;
+use self::jni::JNIEnv;
 use self::jni::objects::{JClass, JValue, JByteBuffer};
+use jni::sys::{jint, jobject};
+#[macro_use]
+extern crate gfx;
+extern crate gfx_window_glutin;
+extern crate gfx_device_gl;
+extern crate glutin;
+extern crate lyon;
 
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex};
 mod utils;
 use std::time::Instant;
 
-lazy_static! {
-	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, i32, i32)>>>> = Arc::new(Mutex::new(None));
+use lyon::extra::rust_logo::build_logo_path;
+use lyon::path::builder::*;
+use lyon::math::*;
+use lyon::tessellation::geometry_builder::{VertexConstructor, VertexBuffers, BuffersBuilder};
+use lyon::tessellation::{FillTessellator, FillOptions};
+use lyon::tessellation;
+use lyon::path::default::Path;
+
+use gfx::traits::{Device, FactoryExt};
+
+use glutin::GlContext;
+
+type ColorFormat = gfx::format::Rgba8;
+type DepthFormat = gfx::format::DepthStencil;
+
+gfx_defines!{
+    vertex GpuFillVertex {
+        position: [f32; 2] = "a_position",
+    }
+
+    pipeline fill_pipeline {
+        vbo: gfx::VertexBuffer<GpuFillVertex> = (),
+        out_color: gfx::RenderTarget<ColorFormat> = "out_color",
+    }
 }
 
-fn allegro_main(){
-	error!("进入allegro_main..");
-	let core = Core::init().unwrap();
-	let font_addon = FontAddon::init(&core).unwrap();
-	let ttf_addon = TtfAddon::init(&font_addon).unwrap();
+// A very simple vertex constructor that only outputs the vertex position
+struct VertexCtor;
+impl VertexConstructor<tessellation::FillVertex, GpuFillVertex> for VertexCtor {
+    fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> GpuFillVertex {
+        assert!(!vertex.position.x.is_nan());
+        assert!(!vertex.position.y.is_nan());
+        GpuFillVertex {
+            // (ugly hack) tweak the vertext position so that the logo fits roughly
+            // within the (-1.0, 1.0) range.
+            position: (vertex.position * 0.0145 - vector(1.0, 1.0)).to_array(),
+        }
+    }
+}
 
-	let display = Display::new(&core, 800, 600).unwrap();
-	let timer = Timer::new(&core, 1.0 / 60.0).unwrap();
-
-	trace!("加载字体文件");
-	let mut font = load_ttf_font(&ttf_addon, "FZKTJW.TTF", 128);
-	if font.is_none(){
-		font = Some(Font::new_builtin(&font_addon).unwrap());
-	}
-	trace!("加载完成。");
-
-	let queue = EventQueue::new(&core).unwrap();
-	queue.register_event_source(display.get_event_source());
-	queue.register_event_source(timer.get_event_source());
-
-	let (sender, receiver) = channel();
-
-	*IMAGE_SENDER.lock().unwrap() = Some(sender);
-
-	// let logo = utils::load_assets("rust.png").unwrap();
-	// let decoder = png::Decoder::new(logo.as_slice());
-	// let (info, mut reader) = decoder.read_info().unwrap();
-	// trace!("logo.png {}x{}", info.width, info.height);
-    // let mut img_data = vec![0; info.buffer_size()];
-	// reader.next_frame(&mut img_data).unwrap();
-
-	//创建内存位图
-	core.set_new_bitmap_flags_flag(core.get_new_bitmap_flags().get() | 1);
-	let mut capture = None;
-	
-	let mut redraw = true;
-	timer.start();
-	'exit: loop{
-		//let image = receiver.try_recv();
-		if redraw && queue.is_empty(){
-			core.clear_to_color(Color::from_rgb_f(1.0, 1.0, 1.0));
-			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 1.0),
-				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32,
-				FontAlign::Centre, "Hello Rust!");
-			core.draw_text(font.as_ref().unwrap(), Color::from_rgb_f(0.0, 0.0, 0.0),
-				(display.get_width() / 2) as f32, (display.get_height() / 2) as f32+128.0,
-				FontAlign::Centre, "懒人字典");
-
-			//更新图片
-			let now = Instant::now();
-			if let Ok((data, width, height)) = receiver.try_recv(){
-				if capture.is_none(){
-					capture = Some(Bitmap::new(&core, width, height).unwrap());
-				}
-				let bitmap = capture.as_ref().unwrap();
-				//复制图像数据
-				let a_bmp = bitmap.get_allegro_bitmap();
-				let lock = unsafe{ allegro_sys::al_lock_bitmap(a_bmp, allegro_sys::ALLEGRO_PIXEL_FORMAT_RGB_888 as i32, allegro_sys::ALLEGRO_LOCK_READWRITE as i32) };
-				let dat: *mut u8 = unsafe{ (*lock).data as *mut u8 };
-				let slice:&mut [u8] = unsafe{ ::std::slice::from_raw_parts_mut(dat, data.len()) };
-				//slice顺序 b,g,r
-				//data的顺序 rgb
-				for i in (0..data.len()).step_by(3){
-					slice[i] = data[i+2];
-					slice[i+1] = data[i+1];
-					slice[i+2] = data[i];
-				}
-				unsafe{ allegro_sys::al_unlock_bitmap(a_bmp) };
-			}
-			//显示图片
-			if capture.is_some(){
-				let cap = capture.as_ref().unwrap();
-				core.draw_bitmap(cap, 0.0, 0.0, BitmapDrawingFlags::zero());
-			}
-			//core.draw_scaled_bitmap(&logo, 0.0, 0.0, 10.0, 10.0, 0.0, 0.0, 100.0, 100.0, BitmapDrawingFlags::zero());
-			trace!("图片耗时 {}ms", utils::duration_to_milis(&now.elapsed()));
-			core.flip_display();
-			redraw = false;
-		}
-
-		match queue.wait_for_event(){
-			DisplayClose{..} => break 'exit,
-			TimerTick{..} => redraw = true,
-			_ => (),
-		}
-	}
+lazy_static! {
+	static ref IMAGE_SENDER:Arc<Mutex<Option<Sender<(Vec<u8>, usize, usize)>>>> = Arc::new(Mutex::new(None));
 }
 
 fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
@@ -132,9 +83,9 @@ fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
 }
 
 #[no_mangle]
-pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:JValue, height:JValue){
+pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: JByteBuffer, u: JByteBuffer, v:JByteBuffer, width:jint, height:jint){
 	trace!("send>>Java_cn_jy_lazydict_MainActivity_send");
-	let (width, height) = (width.i().unwrap(), height.i().unwrap());
+	let (width, height) = (width as i32, height as i32);
 	let y_src = env.get_direct_buffer_address(y).unwrap();
 	let u_src = env.get_direct_buffer_address(u).unwrap();
 	let v_src = env.get_direct_buffer_address(v).unwrap();
@@ -163,32 +114,93 @@ pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClas
 			rgb[index as usize+2] = tmp[2];
 		}
 	}
-	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((rgb, width, height));
+	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((rgb, width as usize, height as usize));
 }
 
 #[no_mangle]
-#[allow(non_snake_case)]
-pub extern "C" fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JClass, src: JByteBuffer, width:jint, height:jint){
-	trace!("sendRgb>>>>>>>");
-	let ptr_src = env.get_direct_buffer_address(src).unwrap();
-	let mut src = vec![];
-	src.extend_from_slice(ptr_src);
-	let _ = IMAGE_SENDER.lock().unwrap().as_ref().unwrap().send((src, width, height));
-}
-
-fn load_ttf_font(ttf:&TtfAddon, filename:&str, size:i32) -> Option<Font>{
-	match utils::copy_assets(filename){
-		Ok(ttf_path) => Some(ttf.load_ttf_font(&ttf_path, size, TtfFlags::zero()).unwrap()),
-		Err(err) =>{
-			error!("字体文件加载失败: {:?}", err);
-			None
-		}
-	}
-}
-
-#[no_mangle]
-pub fn main(_argc: i32, _char:*mut u8){
+pub unsafe extern fn  ANativeActivity_onCreate(app: *mut (), ud: *mut (), udsize: usize) {
 	use android_logger::Filter;
 	android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-	allegro_main();
+	trace!("winit>>ANativeActivity_onCreate!!!!");
+	android_injected_glue::android_main2(app as *mut _, move |c, v| try_lyon(c, v));
+	trace!("android_main2执行完毕.");
+}
+
+#[no_mangle]
+pub fn try_lyon(_argc: isize, _char: *const *const u8){
+	// Build a Path for the rust logo.
+    let mut builder = SvgPathBuilder::new(Path::builder());
+    build_logo_path(&mut builder);
+    let path = builder.build();
+
+    let mut tessellator = FillTessellator::new();
+
+    let mut mesh: VertexBuffers<GpuFillVertex, u16> = VertexBuffers::new();
+
+    tessellator.tessellate_path(
+        path.path_iter(),
+        &FillOptions::tolerance(0.01),
+        &mut BuffersBuilder::new(&mut mesh, VertexCtor),
+    ).unwrap();
+
+	trace!(" -- fill: {} vertices {} indices", mesh.vertices.len(), mesh.indices.len());
+
+	// Initialize glutin and gfx-rs (refer to gfx-rs examples for more details).
+	trace!("try 001");
+    //let mut events_loop = glutin::EventsLoop::new();
+	trace!("try 002");
+	// use glutin::dpi::LogicalSize;
+    // let glutin_builder = glutin::WindowBuilder::new()
+    //     .with_dimensions(LogicalSize::new(700.0, 700.0))
+    //     .with_decorations(true)
+    //     .with_title("Simple tessellation".to_string());
+
+	let mut events_loop = winit::EventsLoop::new();
+
+	let glutin_builder = winit::WindowBuilder::new();
+	trace!("try 003");
+
+	let context = glutin::ContextBuilder::new()
+	.with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGlEs, (3, 0)));
+	trace!("try 004");
+	let (window, mut device, mut factory, mut main_fbo, mut main_depth) =
+		gfx_window_glutin::init::<ColorFormat, DepthFormat>(glutin_builder, context, &events_loop);
+	trace!("try 005");
+}
+
+#[no_mangle]
+pub fn main(_argc: isize, _char: *const *const u8){
+	trace!("winit>>main!!!!");
+
+	use std::thread;
+
+	let _handler = thread::spawn(|| {
+		trace!("winit>>线程启动");
+		let mut events_loop = winit::EventsLoop::new();
+
+		let _window = winit::WindowBuilder::new()
+			.with_title("A fantastic window!")
+			.build(&events_loop)
+			.unwrap();
+
+		use winit::{ WindowEvent, KeyboardInput, Event};
+		
+		events_loop.run_forever(|event| {
+			trace!("winit>>{:?}", event);
+			match event {
+				Event::WindowEvent{event, ..} => {
+					match event{
+						WindowEvent::CloseRequested => winit::ControlFlow::Break,
+						// WindowEvent::Focused => {
+							
+						// 	winit::ControlFlow::Continue
+						// }
+						_ => winit::ControlFlow::Continue,
+					}
+				}
+				_ => winit::ControlFlow::Continue,
+			}
+		});
+	});
+	trace!("线程启动完毕.");
 }

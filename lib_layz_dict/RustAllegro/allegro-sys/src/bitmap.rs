@@ -66,5 +66,6 @@ extern "C"
 	pub fn al_clone_bitmap(bitmap: *mut ALLEGRO_BITMAP) -> *mut ALLEGRO_BITMAP;
 
 	pub fn al_lock_bitmap(bitmap: *mut ALLEGRO_BITMAP, format: c_int, flags: c_int) -> *mut ALLEGRO_LOCKED_REGION;
+	pub fn al_lock_bitmap_region(bitmap: *mut ALLEGRO_BITMAP, x: c_int, y:c_int, width:c_int, height:c_int, format: c_int, flags: c_int) -> *mut ALLEGRO_LOCKED_REGION;
 	pub fn al_unlock_bitmap(bitmap: *mut ALLEGRO_BITMAP);
 }

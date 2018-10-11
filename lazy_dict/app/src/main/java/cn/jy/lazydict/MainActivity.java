@@ -23,6 +23,8 @@ import android.widget.Toast;
 
 import org.liballeg.android.AllegroActivity;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -31,6 +33,9 @@ import java.util.Collections;
 
 public class MainActivity extends AllegroActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
+    //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
+    private native void sendRgb(byte[] buffer, int width, int height);
+    private native void test(int val);
 
     static {
         System.loadLibrary("allegro");
@@ -42,6 +47,7 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         System.loadLibrary("allegro_audio");
         System.loadLibrary("allegro_acodec");
         System.loadLibrary("allegro_color");
+        System.loadLibrary("lazy_dict");
     }
     public MainActivity() {
         super("liblazy_dict.so");
@@ -61,33 +67,41 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         setContentView(textView);
         requestCameraPermission();
 
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Bitmap bitmap = null;
+                try {
+                    bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                int picw = bitmap.getWidth();
+                int pich = bitmap.getHeight();
+                int[] pix = new int[picw * pich];
+                bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
+                Log.d(TAG, "total="+picw*pich*3);
 
-        Bitmap bitmap = null;
-        try {
-            bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        int picw = bitmap.getWidth();
-        int pich = bitmap.getHeight();
-        int[] pix = new int[picw * pich];
-        bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
-        Log.d(TAG, "total="+picw*pich*3);
-        ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
-        for (int y = 0; y < pich; y++){
-            for (int x = 0; x < picw; x++)
-            {
-                int index = y * picw + x;
-                int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
-                int g = (pix[index] >> 8) & 0xff;
-                int b = pix[index] & 0xff;
-                new_buf.put((byte) r);
-                new_buf.put((byte) g);
-                new_buf.put((byte) b);
-            }}
-        Log.d(TAG,"new_buf="+new_buf.array().length);
-        sendRgb(new_buf, picw, pich);
-        Log.d(TAG,"sendRgb OK."+new_buf.array().length);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream(picw*pich*3);
+                //ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
+                for (int y = 0; y < pich; y++){
+                    for (int x = 0; x < picw; x++)
+                    {
+                        int index = y * picw + x;
+                        int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
+                        int g = (pix[index] >> 8) & 0xff;
+                        int b = pix[index] & 0xff;
+                        bos.write((byte) r);
+                        bos.write((byte) g);
+                        bos.write((byte) b);
+                    }}
+                test(1);
+                byte data [] = bos.toByteArray();
+                Log.d(TAG,"new_buf="+data.length);
+                sendRgb(data, picw, pich);
+                Log.d(TAG,"sendRgb OK."+data.length);
+            }
+        }, 5000);
     }
 
     private void requestCameraPermission() {
@@ -162,9 +176,6 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
         }
     }
 
-    //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
-    native void sendRgb(ByteBuffer buffer, int width, int height);
-
     @Override
     public void onImageAvailable(ImageReader imageReader) {
         Image image = imageReader.acquireNextImage();
@@ -195,7 +206,7 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
                         new_buf.put((byte) b);
                     }}
                 Log.d(TAG,"nheheew_buf="+new_buf.array().length);
-                sendRgb(new_buf, picw, pich);
+                sendRgb(new_buf.array(), picw, pich);
                 Log.d(TAG,"sendRgb OK."+new_buf.array().length);
             }catch (Throwable t){
                 t.printStackTrace();
