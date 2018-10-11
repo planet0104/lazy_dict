@@ -4,16 +4,7 @@ version = "0.1.0"
 authors = ["planet"]
 
 [dependencies]
-# pistoncore-input = "*"
-# shader_version = "*"
-# gl = "*"
-# android_glue = "*"
-# piston_window = "*"
 libc = "*"
-allegro = {path="RustAllegro/allegro"}
-allegro_font = {path="RustAllegro/allegro_font"}
-allegro_ttf = {path="RustAllegro/allegro_ttf"}
-allegro-sys = {path="RustAllegro/allegro-sys"}
 png = "*"
 log = "*"
 lazy_static = "*"
@@ -21,29 +12,18 @@ jni = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
-# winit = "*"
-# android_injected_glue = "*"
-# android_glue = "*"
-# piston_window = "*"
-# pistoncore-window = "*"
-# gfx = "*"
-# gfx_window_glutin = "*"
-# glium = "0.22.0"
-# pistoncore-winit_window = "*"
-# extern crate graphics;
-# extern crate gfx_graphics;
-# extern crate gfx;
-# extern crate gfx_device_gl;
-# extern crate glutin_window;
-#[dependencies.glutin]
-#git = "https://github.com/tomaka/glutin"
-# glutin = { path = "glutin" }
-
-# [dependencies.pistoncore-glutin_window]
-# git = "https://github.com/PistonDevelopers/glutin_window"
+bytes = "*"
+winit = "*"
+android_injected_glue = "*"
+android_glue = "*"
+gfx = "*"
+gfx_window_glutin = "0.26.0"
+gfx_device_gl = "*"
+glutin = "0.18.0"
+lyon = { version="*", features = ["extra"]  }
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [profile.release]
 lto = true
