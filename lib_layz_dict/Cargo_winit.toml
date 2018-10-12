@@ -5,22 +5,22 @@ authors = ["planet"]
 
 [dependencies]
 libc = "*"
+png = "*"
 log = "*"
-lazy_static = "1.1.0"
+lazy_static = "*"
 jni = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
 bytes = "*"
-sdl2 = "0.32.0-beta.2"
-#image = "*"
-glutin = "*"
-egl = "*"
-gfx_device_gl = "0.15.0"
-gfx = "0.17.1"
-piston2d-gfx_graphics = "0.52.0"
-shader_version = "*"
-piston2d-graphics = "*"
+winit = "*"
+android_injected_glue = "*"
+android_glue = "*"
+gfx = "*"
+gfx_window_glutin = "0.26.0"
+gfx_device_gl = "*"
+glutin = "0.18.0"
+lyon = { version="*", features = ["extra"]  }
 
 [lib]
 crate-type = ["cdylib"]

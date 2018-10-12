@@ -1,10 +1,12 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraDevice;
@@ -18,40 +20,38 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.widget.TextView;
+import android.view.Surface;
+import android.view.SurfaceView;
 import android.widget.Toast;
 
-import org.liballeg.android.AllegroActivity;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
-public class MainActivity extends AllegroActivity implements ImageReader.OnImageAvailableListener {
+public class MainActivity extends Activity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
     //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
     private native void sendRgb(byte[] buffer, int width, int height);
-    private native void test(int val);
+    private native void drawSurface(Surface surface);
+    private SurfaceView surface;
 
     static {
-        System.loadLibrary("allegro");
-        System.loadLibrary("allegro_primitives");
-        System.loadLibrary("allegro_image");
-        System.loadLibrary("allegro_memfile");
-        System.loadLibrary("allegro_font");
-        System.loadLibrary("allegro_ttf");
-        System.loadLibrary("allegro_audio");
-        System.loadLibrary("allegro_acodec");
-        System.loadLibrary("allegro_color");
+//        System.loadLibrary("allegro");
+//        System.loadLibrary("allegro_primitives");
+//        System.loadLibrary("allegro_image");
+//        System.loadLibrary("allegro_memfile");
+//        System.loadLibrary("allegro_font");
+//        System.loadLibrary("allegro_ttf");
+//        System.loadLibrary("allegro_audio");
+//        System.loadLibrary("allegro_acodec");
+//        System.loadLibrary("allegro_color");
+        System.loadLibrary("SDL2");
         System.loadLibrary("lazy_dict");
     }
-    public MainActivity() {
-        super("liblazy_dict.so");
-    }
+//    public MainActivity() {
+//        super("liblazy_dict.so");
+//    }
 
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
@@ -62,46 +62,52 @@ public class MainActivity extends AllegroActivity implements ImageReader.OnImage
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        TextView textView =new TextView(this);
-        textView.setText("hello!!!");
-        setContentView(textView);
-        requestCameraPermission();
+        setContentView(R.layout.activity_main);
+        surface = findViewById(R.id.surface);
 
-        new Handler().postDelayed(new Runnable() {
+        //这里如果不延迟会导致ANativeWindow_fromSurface方法调用失败
+        surface.postDelayed(new Runnable() {
             @Override
             public void run() {
-                Bitmap bitmap = null;
-                try {
-                    bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                int picw = bitmap.getWidth();
-                int pich = bitmap.getHeight();
-                int[] pix = new int[picw * pich];
-                bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
-                Log.d(TAG, "total="+picw*pich*3);
-
-                ByteArrayOutputStream bos = new ByteArrayOutputStream(picw*pich*3);
-                //ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
-                for (int y = 0; y < pich; y++){
-                    for (int x = 0; x < picw; x++)
-                    {
-                        int index = y * picw + x;
-                        int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
-                        int g = (pix[index] >> 8) & 0xff;
-                        int b = pix[index] & 0xff;
-                        bos.write((byte) r);
-                        bos.write((byte) g);
-                        bos.write((byte) b);
-                    }}
-                test(1);
-                byte data [] = bos.toByteArray();
-                Log.d(TAG,"new_buf="+data.length);
-                sendRgb(data, picw, pich);
-                Log.d(TAG,"sendRgb OK."+data.length);
+                drawSurface(surface.getHolder().getSurface());
             }
-        }, 5000);
+        }, 3000);
+        requestCameraPermission();
+
+//        new Handler().postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                Bitmap bitmap = null;
+//                try {
+//                    bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//                int picw = bitmap.getWidth();
+//                int pich = bitmap.getHeight();
+//                int[] pix = new int[picw * pich];
+//                bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
+//                Log.d(TAG, "total="+picw*pich*3);
+//
+//                ByteArrayOutputStream bos = new ByteArrayOutputStream(picw*pich*3);
+//                //ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
+//                for (int y = 0; y < pich; y++){
+//                    for (int x = 0; x < picw; x++)
+//                    {
+//                        int index = y * picw + x;
+//                        int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
+//                        int g = (pix[index] >> 8) & 0xff;
+//                        int b = pix[index] & 0xff;
+//                        bos.write((byte) r);
+//                        bos.write((byte) g);
+//                        bos.write((byte) b);
+//                    }}
+//                byte data [] = bos.toByteArray();
+//                Log.d(TAG,"new_buf="+data.length);
+//                sendRgb(data, picw, pich);
+//                Log.d(TAG,"sendRgb OK."+data.length);
+//            }
+//        }, 5000);
     }
 
     private void requestCameraPermission() {
