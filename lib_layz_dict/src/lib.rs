@@ -42,59 +42,65 @@ impl InputQueue{
 }
 unsafe impl Send for InputQueue {}
 
-struct Application{
-	*mut ANativeWindow
+pub struct Application{
+	window : Option<*mut ANativeWindow>,
+	activity: Option<*mut ANativeActivity>,
+	event_loop_sender: Option<Sender<i32>>,
+}
+impl Application{
+	pub fn new() -> Application{
+		Application{ window: None, activity:None, event_loop_sender: None}
+	}
 }
 
 thread_local!{
-	pub static WINDOW: RefCell<Option<*mut ANativeWindow>> = RefCell::new(None);
-	pub static ACTIVITY: RefCell<Option<*mut ANativeActivity>> = RefCell::new(None);
-	pub static EVENT_LOOP_SENDER: RefCell<Option<Sender<i32>>> = RefCell::new(None);
+	pub static APP: RefCell<Application> = RefCell::new(Application::new());
 }
 
 extern "C" fn on_native_window_created(activity: *mut ANativeActivity, window: *mut ANativeWindow){
 	trace!("on_native_window_created");
 	//存储WINDOW
-	WINDOW.with(|w|{ *(w.borrow_mut()) = Some(window); });
+	APP.with(|app|{ app.borrow_mut().window = Some(window); });
 }
 
 extern "C" fn on_native_window_redraw_needed(activity: *mut ANativeActivity, window: *mut ANativeWindow){
 	trace!("on_native_window_redraw_needed");
 	let now = Instant::now();
-	redraw();
+	redraw(activity, window);
 	trace!("redraw 耗时:{}ms", utils::duration_to_milis(&now.elapsed()));
 }
 
 extern "C" fn on_native_window_destroyed(activity: *mut ANativeActivity, window: *mut ANativeWindow){
 	trace!("on_native_window_destroyed");
-	WINDOW.with(|w|{ *(w.borrow_mut()) = None; });
+	APP.with(|app|{ app.borrow_mut().window = None; });
 }
 
 extern "C" fn on_destroy(activity: *mut ANativeActivity){
-	ACTIVITY.with(|a|{ *(a.borrow_mut()) = None; });
+	APP.with(|app|{ app.borrow_mut().activity = None; });
 	trace!("on_destroy");
 }
 
+fn is_activity_window_null(activity: *mut ANativeActivity, window: *mut ANativeWindow) ->bool{
+	if activity.is_null(){
+		error!("ANativeActivity is null.");
+		true
+	}else if window.is_null(){
+		error!("ANativeWindow is null.");
+		true
+	}else{
+		false
+	}
+}
+
 fn redraw(activity: *mut ANativeActivity, window: *mut ANativeWindow){
+	if is_activity_window_null(activity, window){ return;}
 	//let now = Instant::now();
-	let mut buffer = ANativeWindow_Buffer{
-		width: 0,
-		height: 0,
-		stride: 0,
-		format: 0,
-		bits: 0 as *mut c_void,
-		reserved: [0; 5],
-	};
-	let mut rect = ARect {
-		left: 0,
-		top: 0,
-		right: 0,
-		bottom: 0,
-	};
+	let mut buffer = ANativeWindow_Buffer{ width: 0, height: 0, stride: 0, format: 0, bits: 0 as *mut c_void, reserved: [0; 5] };
+	let mut rect = ARect { left: 0, top: 0, right: 0, bottom: 0};
 	//trace!("000 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
-	let ret = unsafe{ ANativeWindow_lock(window, &mut buffer, &mut rect) };
-	if ret !=0{
-		trace!("ANativeWindow_lock 调用失败! {}", ret);
+	let ret_code = unsafe{ ANativeWindow_lock(window, &mut buffer, &mut rect) };
+	if ret_code !=0 {
+		error!("ANativeWindow_lock 调用失败! {}", ret_code);
 		return;
 	}
 	//trace!("001 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
@@ -107,104 +113,110 @@ fn redraw(activity: *mut ANativeActivity, window: *mut ANativeWindow){
 	};
 	let mut pixels = unsafe{ std::slice::from_raw_parts_mut(buffer.bits as *mut u8, (buffer.width*buffer.height*pixel_size) as usize) };
 	//trace!("002 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
-	let surface = Surface::from_data(&mut pixels, buffer.width as u32, buffer.height as u32, (buffer.stride * pixel_size) as u32, pixel_format).unwrap();
-	let mut canvas = Canvas::from_surface(surface).unwrap();
-	//trace!("003 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
-
-	//绘图
-	canvas.set_draw_color(Color::RGB(0, 255, 0));
-	canvas.clear();
-	canvas.set_draw_color(Color::RGB(0, 0, 255));
-	canvas.fill_rect(Some(Rect::new(0, 0, 200, 200))).unwrap();
-	canvas.present();
-	//trace!("004 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
-
-	//不执行post不会绘图
-	let ret = unsafe{ ANativeWindow_unlockAndPost(window) };
-	if ret != 0{
-		trace!("ANativeWindow_unlockAndPost 调用失败!");
-		return;
+	match Surface::from_data(&mut pixels, buffer.width as u32, buffer.height as u32, (buffer.stride * pixel_size) as u32, pixel_format){
+		Ok(surface) =>{
+			match Canvas::from_surface(surface){
+				Ok(mut canvas) =>{
+					//绘图
+					canvas.set_draw_color(Color::RGB(0, 255, 0));
+					canvas.clear();
+					canvas.set_draw_color(Color::RGB(0, 0, 255));
+					let _ = canvas.fill_rect(Some(Rect::new(0, 0, 200, 200)));
+					canvas.present();
+				}
+				Err(err) => error!("Canvas创建失败 {:?}", err)
+			}
+		}
+		Err(err) => error!("Surface创建失败! {:?}", err)
+	}
+	if unsafe{ ANativeWindow_unlockAndPost(window) } != 0{
+		error!("ANativeWindow_unlockAndPost 调用失败!");
 	}
 	//trace!("{}x{} pixel_size={} pixel_format={:?} 耗时:{}ms", buffer.format, buffer.width, buffer.height, pixel_format, utils::duration_to_milis(&now.elapsed()));
 }
 
 extern fn on_input_queue_created(activity: *mut ANativeActivity, queue: *mut AInputQueue){
-	trace!("on_input_queue_created");
-	let (sender, receiver) = channel();
-	EVENT_LOOP_SENDER.with(|s|{ *(s.borrow_mut()) = Some(sender); });
-	//启动事件循环
-	let input_queue = InputQueue::new(queue);
-	thread::spawn(move || {
-		trace!("启动事件循环");
-		loop{
-			if let Ok(_some) = receiver.try_recv(){
-				break;
-			}
-			if unsafe{AInputQueue_hasEvents(input_queue.queue)}<0{
-				//没有事件
-				continue; 
-			}
-			let mut event: *mut AInputEvent = 0 as *mut c_void;
-			unsafe{ AInputQueue_getEvent(input_queue.queue, &mut event); }
-			if !event.is_null(){
-				match unsafe{ AInputEvent_getType(event) }{
-					AINPUT_EVENT_TYPE_MOTION =>{
-						let cx = unsafe{ AMotionEvent_getX(event, 0) };
-						let cy = unsafe{ AMotionEvent_getY(event, 0) };
-						trace!("触摸事件 ({},{})", cx, cy);
-						match unsafe{ AMotionEvent_getAction(event) } {
-							AMOTION_EVENT_ACTION_DOWN => {
-								trace!("手指按下 {},{}", cx, cy);
-							}
-							AMOTION_EVENT_ACTION_UP => {
-								trace!("手指起开 {},{}", cx, cy);
-							}
-							_ => {}
-						}
-					}
-					AINPUT_EVENT_TYPE_KEY => {
-						trace!("键盘事件");
-						match unsafe{ AKeyEvent_getAction(event) } {
-							AKEY_EVENT_ACTION_DOWN => {
-								trace!("键盘按下");
-								match unsafe{ AKeyEvent_getKeyCode(event) } {
-									AKEYCODE_BACK => {
-										trace!("返回键按下");
-									}
-									_ => {}
-								}
-							}
-							AKEY_EVENT_ACTION_UP => {
-								trace!("返回键弹起");
-							}
-							_ => {}
-						}
-					}
-					_ => {}
+	APP.with(|app|{
+		let mut app = app.borrow_mut();
+		let (sender, receiver) = channel();
+		app.event_loop_sender = Some(sender);
+		//启动事件循环
+		let input_queue = InputQueue::new(queue);
+		thread::spawn(move || {
+			trace!("事件循环线程已启动");
+			loop{
+				if let Ok(_some) = receiver.try_recv(){
+					break;
 				}
-				unsafe{AInputQueue_finishEvent(input_queue.queue, event, 0);}
+				if input_queue.queue.is_null(){
+					error!("AInputQueue is null! 推出时间循环线程");
+					break;
+				}
+				if unsafe{AInputQueue_hasEvents(input_queue.queue)}<0{
+					//没有事件
+					continue; 
+				}
+				let mut event: *mut AInputEvent = 0 as *mut c_void;
+				unsafe{ AInputQueue_getEvent(input_queue.queue, &mut event); }
+				if !event.is_null(){
+					match unsafe{ AInputEvent_getType(event) }{
+						AINPUT_EVENT_TYPE_MOTION =>{
+							let cx = unsafe{ AMotionEvent_getX(event, 0) };
+							let cy = unsafe{ AMotionEvent_getY(event, 0) };
+							trace!("触摸事件 ({},{})", cx, cy);
+							match unsafe{ AMotionEvent_getAction(event) } {
+								AMOTION_EVENT_ACTION_DOWN => {
+									trace!("手指按下 {},{}", cx, cy);
+								}
+								AMOTION_EVENT_ACTION_UP => {
+									trace!("手指起开 {},{}", cx, cy);
+								}
+								_ => {}
+							}
+						}
+						AINPUT_EVENT_TYPE_KEY => {
+							trace!("键盘事件");
+							match unsafe{ AKeyEvent_getAction(event) } {
+								AKEY_EVENT_ACTION_DOWN => {
+									trace!("键盘按下");
+									match unsafe{ AKeyEvent_getKeyCode(event) } {
+										AKEYCODE_BACK => {
+											trace!("返回键按下");
+										}
+										_ => {}
+									}
+								}
+								AKEY_EVENT_ACTION_UP => {
+									trace!("返回键弹起");
+								}
+								_ => {}
+							}
+						}
+						_ => {}
+					}
+					unsafe{AInputQueue_finishEvent(input_queue.queue, event, 0);}
+				}
 			}
-		}
-		trace!("事件循环结束");
+			trace!("事件循环结束");
+		});
 	});
 }
 
 extern fn on_input_queue_destroyed(activity: *mut ANativeActivity, queue: *mut AInputQueue){
-	trace!("on_input_queue_destroyed");
-	EVENT_LOOP_SENDER.with(|s|{
-		//结束事件循环线程
-		let mut sender = s.borrow_mut();
-		if sender.is_some(){
-			let _ = sender.as_ref().unwrap().send(1);
-			*sender = None;
+	APP.with(|app|{
+		let mut app = app.borrow_mut();
+		if app.event_loop_sender.is_some(){
+			let _ = app.event_loop_sender.as_ref().unwrap().send(1);
+			app.event_loop_sender = None;
 		}
+		trace!("事件循环线程结束");
 	});
 }
 
 #[no_mangle]
 pub extern "C" fn ANativeActivity_onCreate(activity: *mut ANativeActivity, savedState: *mut c_void, savedStateSize: *mut libc::size_t){
 	//存储NativeActivity
-	ACTIVITY.with(|a|{ *(a.borrow_mut()) = Some(activity); });
+	APP.with(|app|{ app.borrow_mut().activity = Some(activity); });
 
 	//初始化logger
 	android_logger::init_once(android_logger::Filter::default().with_min_level(Level::Trace));
