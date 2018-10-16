@@ -12,7 +12,8 @@ android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
 bytes = "*"
-sdl2 = { version = "0.32.0-beta.2", features = ["static-link"] }
+sdl2 = { version = "0.32.0-beta.2" }
+
 image = "*"
 
 [lib]

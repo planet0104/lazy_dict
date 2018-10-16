@@ -2,11 +2,11 @@ package cn.jy.lazydict;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.NativeActivity;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
-import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraDevice;
@@ -29,7 +29,7 @@ import java.util.Collections;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
-public class MainActivity extends Activity implements ImageReader.OnImageAvailableListener {
+public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
     //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
     private native void sendRgb(byte[] buffer, int width, int height);
@@ -46,8 +46,8 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 //        System.loadLibrary("allegro_audio");
 //        System.loadLibrary("allegro_acodec");
 //        System.loadLibrary("allegro_color");
-        System.loadLibrary("SDL2");
-        System.loadLibrary("lazy_dict");
+            System.loadLibrary("SDL2");
+            //System.loadLibrary("lazy_dict");
     }
 //    public MainActivity() {
 //        super("liblazy_dict.so");
@@ -66,13 +66,13 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         surface = findViewById(R.id.surface);
 
         //这里如果不延迟会导致ANativeWindow_fromSurface方法调用失败
-        surface.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                drawSurface(surface.getHolder().getSurface());
-            }
-        }, 3000);
-        requestCameraPermission();
+//        surface.postDelayed(new Runnable() {
+//            @Override
+//            public void run() {
+//                drawSurface(surface.getHolder().getSurface());
+//            }
+//        }, 3000);
+//        requestCameraPermission();
 
 //        new Handler().postDelayed(new Runnable() {
 //            @Override

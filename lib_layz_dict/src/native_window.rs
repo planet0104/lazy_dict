@@ -1,5 +1,5 @@
 use jni::sys::{jobject, JNIEnv};
-use std::os::raw::{c_void};
+use std::os::raw::{c_void,c_float};
 //
 //       android/rect.h
 //
