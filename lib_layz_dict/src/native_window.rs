@@ -1,5 +1,10 @@
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+// #![allow(non_upper_case_globals)]
+
 use jni::sys::{jobject, JNIEnv};
-use std::os::raw::{c_void,c_float};
+use std::os::raw::{c_void};
 //
 //       android/rect.h
 //
@@ -27,10 +32,10 @@ pub struct ANativeWindow_Buffer {
 
 pub const WINDOW_FORMAT_RGBA_8888: i32 = 1;
 pub const WINDOW_FORMAT_RGBX_8888: i32 = 2;
+pub const WINDOW_FORMAT_RGB_888: i32 = 3;
 pub const WINDOW_FORMAT_RGB_565: i32 = 4;
 
 #[link(name = "nativewindow")]
-#[allow(non_snake_case)]
 extern "C" {
 	pub fn ANativeWindow_acquire(window: *mut ANativeWindow);
     pub fn ANativeWindow_getFormat(window: *mut ANativeWindow) -> i32;

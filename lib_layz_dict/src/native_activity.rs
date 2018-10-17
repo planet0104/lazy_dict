@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
 use jni::sys::{jobject, JNIEnv, JavaVM};
 use std::os::raw::{c_void, c_char,c_int, c_float};
 use native_window::{ARect, ANativeWindow};
@@ -461,7 +465,6 @@ pub const AMOTION_EVENT_TOOL_TYPE_STYLUS: i32 = 2;
 pub const AMOTION_EVENT_TOOL_TYPE_UNKNOWN: i32 = 0;
 
 #[link(name = "android")]
-#[allow(non_snake_case)]
 extern {
     pub fn AInputQueue_attachLooper(queue: *mut AInputQueue, looper: *mut ALooper, ident: c_int, callback: ALooper_callbackFunc, data: *mut c_void);
     pub fn AInputQueue_detachLooper(queue: *mut AInputQueue);
