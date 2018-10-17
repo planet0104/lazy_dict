@@ -1,3 +1,5 @@
+#[allow(non_snake_case)]
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use] extern crate log;
@@ -8,8 +10,8 @@ use log::Level;
 extern crate jni;
 use std::time::Instant;
 use self::jni::JNIEnv;
-use self::jni::objects::{JClass, JValue, JByteBuffer};
-use jni::sys::{jint, jobject, jbyteArray};
+use self::jni::objects::{JClass};
+use jni::sys::{jint, jbyteArray};
 use std::os::raw::{c_void};
 extern crate sdl2;
 use sdl2::surface::Surface;
@@ -17,20 +19,19 @@ use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::pixels::PixelFormatEnum;
 use std::thread;
-mod utils;
 extern crate libc;
 use sdl2::rect::Rect;
 extern crate bytes;
+mod utils;
 mod jni_graphics;
 mod native_window;
 mod native_activity;
-use jni_graphics::*;
 use native_window::*;
 use native_activity::*;
-use sdl2::rect::Point;
+// use sdl2::rect::Point;
 use std::cell::RefCell;
-use std::sync::mpsc::{ Sender, Receiver, channel};
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{ Sender, channel};
+// use std::sync::{Arc, Mutex};
 
 pub struct InputQueue{
 	queue: *mut AInputQueue
@@ -46,6 +47,7 @@ pub struct Application{
 	window : Option<*mut ANativeWindow>,
 	activity: Option<*mut ANativeActivity>,
 	event_loop_sender: Option<Sender<i32>>,
+	
 }
 impl Application{
 	pub fn new() -> Application{
@@ -57,85 +59,94 @@ thread_local!{
 	pub static APP: RefCell<Application> = RefCell::new(Application::new());
 }
 
-extern "C" fn on_native_window_created(activity: *mut ANativeActivity, window: *mut ANativeWindow){
+extern "C" fn on_native_window_created(_activity: *mut ANativeActivity, window: *mut ANativeWindow){
 	trace!("on_native_window_created");
+	//设置格式
+	if unsafe{ANativeWindow_setBuffersGeometry(window, ANativeWindow_getWidth(window), ANativeWindow_getHeight(window), WINDOW_FORMAT_RGB_888)} < 0{
+		error!("ANativeWindow_setBuffersGeometry error!");
+		return;
+	}
 	//存储WINDOW
 	APP.with(|app|{ app.borrow_mut().window = Some(window); });
 }
 
-extern "C" fn on_native_window_redraw_needed(activity: *mut ANativeActivity, window: *mut ANativeWindow){
+extern "C" fn on_native_window_redraw_needed(_activity: *mut ANativeActivity, _window: *mut ANativeWindow){
 	trace!("on_native_window_redraw_needed");
 	let now = Instant::now();
-	redraw(activity, window);
+	// APP.with(|app|{
+	// 	draw_frame(&app.borrow(), |canvas|{
+	// 		trace!("on_canvas_render!!");
+	// 		//绘图
+	// 		canvas.set_draw_color(Color::RGB(0, 255, 0));
+	// 		trace!("on_canvas_render0001");
+	// 		canvas.clear();
+	// 		trace!("on_canvas_render0002");
+	// 		canvas.set_draw_color(Color::RGB(0, 0, 255));
+	// 		trace!("on_canvas_render0003");
+	// 		let _ = canvas.fill_rect(Some(Rect::new(0, 0, 200, 200)));
+	// 		trace!("on_canvas_render0004");
+	// 		canvas.present();
+	// 		trace!("on_canvas_render0005");
+	// 	});
+	// });
 	trace!("redraw 耗时:{}ms", utils::duration_to_milis(&now.elapsed()));
 }
 
-extern "C" fn on_native_window_destroyed(activity: *mut ANativeActivity, window: *mut ANativeWindow){
+extern "C" fn on_native_window_destroyed(_activity: *mut ANativeActivity, _window: *mut ANativeWindow){
 	trace!("on_native_window_destroyed");
 	APP.with(|app|{ app.borrow_mut().window = None; });
 }
 
-extern "C" fn on_destroy(activity: *mut ANativeActivity){
+extern "C" fn on_destroy(_activity: *mut ANativeActivity){
 	APP.with(|app|{ app.borrow_mut().activity = None; });
 	trace!("on_destroy");
 }
 
-fn is_activity_window_null(activity: *mut ANativeActivity, window: *mut ANativeWindow) ->bool{
-	if activity.is_null(){
-		error!("ANativeActivity is null.");
-		true
-	}else if window.is_null(){
-		error!("ANativeWindow is null.");
-		true
-	}else{
-		false
+fn draw_frame<F>(app: &Application, render: F) where F : Fn(&mut Canvas<Surface>){
+	if app.activity.is_none() || app.activity.unwrap().is_null(){
+		error!("draw_frame>ANativeActivity is null.");
+		return;
 	}
-}
-
-fn redraw(activity: *mut ANativeActivity, window: *mut ANativeWindow){
-	if is_activity_window_null(activity, window){ return;}
+	if app.window.is_none() || app.window.unwrap().is_null(){
+		error!("draw_frame>ANativeWindow is null.");
+		return;
+	}
 	//let now = Instant::now();
 	let mut buffer = ANativeWindow_Buffer{ width: 0, height: 0, stride: 0, format: 0, bits: 0 as *mut c_void, reserved: [0; 5] };
 	let mut rect = ARect { left: 0, top: 0, right: 0, bottom: 0};
 	//trace!("000 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
-	let ret_code = unsafe{ ANativeWindow_lock(window, &mut buffer, &mut rect) };
+	let ret_code = unsafe{ ANativeWindow_lock(app.window.unwrap(), &mut buffer, &mut rect) };
 	if ret_code !=0 {
 		error!("ANativeWindow_lock 调用失败! {}", ret_code);
 		return;
 	}
-	//trace!("001 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
 
 	let (pixel_size, pixel_format) = match buffer.format{
 		WINDOW_FORMAT_RGBA_8888 => (4, PixelFormatEnum::RGBA8888),
 		WINDOW_FORMAT_RGBX_8888 => (4, PixelFormatEnum::RGBX8888),
+		WINDOW_FORMAT_RGB_888 => (4, PixelFormatEnum::RGB888),
 		WINDOW_FORMAT_RGB_565 => (2, PixelFormatEnum::RGB565),
 		_ => return
 	};
 	let mut pixels = unsafe{ std::slice::from_raw_parts_mut(buffer.bits as *mut u8, (buffer.width*buffer.height*pixel_size) as usize) };
-	//trace!("002 耗时:{}ms", utils::duration_to_milis(&now.elapsed())); let now = Instant::now();
 	match Surface::from_data(&mut pixels, buffer.width as u32, buffer.height as u32, (buffer.stride * pixel_size) as u32, pixel_format){
 		Ok(surface) =>{
 			match Canvas::from_surface(surface){
 				Ok(mut canvas) =>{
-					//绘图
-					canvas.set_draw_color(Color::RGB(0, 255, 0));
-					canvas.clear();
-					canvas.set_draw_color(Color::RGB(0, 0, 255));
-					let _ = canvas.fill_rect(Some(Rect::new(0, 0, 200, 200)));
-					canvas.present();
+					render(&mut canvas);
 				}
 				Err(err) => error!("Canvas创建失败 {:?}", err)
 			}
 		}
 		Err(err) => error!("Surface创建失败! {:?}", err)
 	}
-	if unsafe{ ANativeWindow_unlockAndPost(window) } != 0{
+	if unsafe{ ANativeWindow_unlockAndPost(app.window.unwrap()) } != 0{
 		error!("ANativeWindow_unlockAndPost 调用失败!");
 	}
 	//trace!("{}x{} pixel_size={} pixel_format={:?} 耗时:{}ms", buffer.format, buffer.width, buffer.height, pixel_format, utils::duration_to_milis(&now.elapsed()));
 }
 
-extern fn on_input_queue_created(activity: *mut ANativeActivity, queue: *mut AInputQueue){
+extern fn on_input_queue_created(_activity: *mut ANativeActivity, queue: *mut AInputQueue){
 	APP.with(|app|{
 		let mut app = app.borrow_mut();
 		let (sender, receiver) = channel();
@@ -202,7 +213,7 @@ extern fn on_input_queue_created(activity: *mut ANativeActivity, queue: *mut AIn
 	});
 }
 
-extern fn on_input_queue_destroyed(activity: *mut ANativeActivity, queue: *mut AInputQueue){
+extern fn on_input_queue_destroyed(_activity: *mut ANativeActivity, _queue: *mut AInputQueue){
 	APP.with(|app|{
 		let mut app = app.borrow_mut();
 		if app.event_loop_sender.is_some(){
@@ -213,8 +224,9 @@ extern fn on_input_queue_destroyed(activity: *mut ANativeActivity, queue: *mut A
 	});
 }
 
+#[allow(non_snake_case)]
 #[no_mangle]
-pub extern "C" fn ANativeActivity_onCreate(activity: *mut ANativeActivity, savedState: *mut c_void, savedStateSize: *mut libc::size_t){
+pub extern "C" fn ANativeActivity_onCreate(activity: *mut ANativeActivity, _savedState: *mut c_void, _savedStateSize: *mut libc::size_t){
 	//存储NativeActivity
 	APP.with(|app|{ app.borrow_mut().activity = Some(activity); });
 
@@ -222,7 +234,6 @@ pub extern "C" fn ANativeActivity_onCreate(activity: *mut ANativeActivity, saved
 	android_logger::init_once(android_logger::Filter::default().with_min_level(Level::Trace));
 	trace!("ANativeActivity_onCreate");
 
-	//NativeWindow创建
 	unsafe{
 		(*(*activity).callbacks).onNativeWindowCreated = on_native_window_created;
 		(*(*activity).callbacks).onNativeWindowRedrawNeeded = on_native_window_redraw_needed;
@@ -233,14 +244,14 @@ pub extern "C" fn ANativeActivity_onCreate(activity: *mut ANativeActivity, saved
 	}
 }
 
-#[allow(non_snake_case)]
 #[no_mangle]
-pub extern fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, reserved: *mut c_void) -> jint{
+pub extern fn JNI_OnLoad(_vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(Level::Trace));
 	trace!("JNI_OnLoad.");
 	jni::sys::JNI_VERSION_1_6
 }
 
+#[allow(dead_code)]
 fn rgb888_to_rgb565(red: u8, green: u8, blue: u8) -> u16{
 	let b = (blue as u16 >> 3) & 0x001F;
 	let g = ((green as u16 >> 2) << 5) & 0x07E0;
@@ -248,13 +259,107 @@ fn rgb888_to_rgb565(red: u8, green: u8, blue: u8) -> u16{
 	return r | g | b;
 }
 
+fn yuv_to_rgb(y:u8, u:u8,  v:u8) -> [u8;3]{
+	let mut r = (y&0xff) as f64 + 1.4075 * ((v&0xff)-128) as f64;
+	let mut g = (y&0xff) as f64 - 0.3455 * ((u&0xff)-128) as f64 - 0.7169*((v&0xff)-128) as f64;
+	let mut b = (y&0xff) as f64 + 1.779 * ((u&0xff)-128) as f64;
+	
+	if r<0.0 { r=0.0; }
+	if r>255.0 { r=255.0; }
+	if g<0.0 { g=0.0; }
+	if g>255.0 { g=255.0; }
+	if b<0.0 { b=0.0; }
+	if b>255.0 { b=255.0; }
+	[r as u8, g as u8, b as u8]
+}
+
+// #[allow(non_snake_case)]
+// #[no_mangle]
+// pub extern fn Java_cn_jy_lazydict_MainActivity_setPreviewType(_env: JNIEnv, _: JClass, preivew_type: jint) -> jni::sys::jboolean{
+// 	trace!("Java_cn_jy_lazydict_MainActivity_setPreviewType {}", preivew_type);
+// 	let mut success = false;
+// 	APP.with(|app|{
+// 		if let Some(window) = app.borrow().window{
+// 			if unsafe{ANativeWindow_setBuffersGeometry(window, ANativeWindow_getWidth(window), ANativeWindow_getHeight(window), preivew_type)} == 0{
+// 				success = true;
+// 			}
+// 		}
+// 	});
+// 	success as jni::sys::jboolean
+// }
+
+#[no_mangle]
+pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, width:jint, height:jint){
+	trace!("send>>Java_cn_jy_lazydict_MainActivity_send");
+	// if width!=0{return; }
+	// APP.with(|app|{
+	// 	let app = app.borrow();
+	// 	draw_frame(&app, |canvas|{
+	// 		let (width, height) = (width as i32, height as i32);
+	// 		let y_src = env.get_direct_buffer_address(y).unwrap();
+	// 		let u_src = env.get_direct_buffer_address(u).unwrap();
+	// 		let v_src = env.get_direct_buffer_address(v).unwrap();
+	// 		let mut src = vec![];
+	// 		src.extend_from_slice(y_src);
+	// 		src.extend_from_slice(u_src);
+	// 		src.extend_from_slice(v_src);
+	// 		let num_of_pixel = width * height;
+	// 		let position_of_v = num_of_pixel;
+	// 		let position_of_u = num_of_pixel/4 + num_of_pixel;
+	// 		let mut rgb = vec![0; num_of_pixel as usize*3];
+	// 		for i in 0..height{
+	// 			let start_y = i*width;
+	// 			let step = (i/2)*(width/2);
+	// 			let start_v = position_of_v + step;
+	// 			let start_u = position_of_u + step;
+	// 			for j in 0..width{
+	// 				let y = start_y + j;
+	// 				let v = start_v + j/2;
+	// 				let u = start_u + j/2;
+	// 				let index = y*3;
+	// 				let tmp = yuv_to_rgb(src[u as usize], src[u as usize], src[v as usize]);
+	// 				rgb[index as usize] = tmp[0];
+	// 				rgb[index as usize+1] = tmp[1];
+	// 				rgb[index as usize+2] = tmp[2];
+	// 			}
+	// 		}
+
+	// 		let texture_creator = canvas.texture_creator();
+	// 		trace!("画图 0004");
+	// 		let image_surface = Surface::from_data(rgb.as_mut_slice(), width as u32, height as u32, width as u32*3, PixelFormatEnum::RGB888).unwrap();
+	// 		trace!("画图 0005");
+	// 		let mut texture = texture_creator.create_texture_from_surface(image_surface).unwrap();
+	// 		trace!("画图 0006");
+	// 		canvas.copy(&mut texture, None, Some(Rect::new(0, 0, width as u32, height as u32))).unwrap();
+	// 		trace!("画图 0007");
+	// 	});
+	// });
+}
+
 #[allow(non_snake_case)]
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JClass, src: jbyteArray, width:jint, height:jint){
-	// use android_logger::Filter;
-	// android_logger::init_once(Filter::default().with_min_level(Level::Trace));
-	// trace!("sendRgb>>>>>>> width={} height={}", width, height);
-	// let data = env.convert_byte_array(src).unwrap();
-	// trace!("sendRgb>>>>>>>convert_byte_array data.len()={}", data.len());
-	// trace!("surface ok!");
+pub extern fn Java_cn_jy_lazydict_MainActivity_sendRgb(env: JNIEnv, _: JClass, preview_bytes: jbyteArray, preview_width: jint, preview_height: jint, preview_row_stride: jint){
+	// APP.with(|app|{
+	// 	let app = app.borrow();
+	// 	draw_frame(&app, |canvas|{
+	// 		let mut preivew_buffer = env.convert_byte_array(preview_bytes).unwrap();
+	// 		trace!("画图 0001");
+	// 		//绘图
+	// 		canvas.set_draw_color(Color::RGB(0, 255, 0));
+	// 		trace!("画图 0002");
+	// 		canvas.clear();
+	// 		trace!("画图 0003");
+	// 		{
+	// 			let texture_creator = canvas.texture_creator();
+	// 			trace!("画图 0004");
+	// 			let image_surface = Surface::from_data(preivew_buffer.as_mut_slice(), preview_width as u32, preview_height as u32, preview_row_stride as u32, PixelFormatEnum::RGB565).unwrap();
+	// 			trace!("画图 0005");
+	// 			let mut texture = texture_creator.create_texture_from_surface(image_surface).unwrap();
+	// 			trace!("画图 0006");
+	// 			canvas.copy(&mut texture, None, Some(Rect::new(0, 0, preview_width as u32, preview_height as u32))).unwrap();
+	// 			trace!("画图 0007");
+	// 		}
+	// 		canvas.present();
+	// 	});
+	// });
 }

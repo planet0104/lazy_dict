@@ -1,0 +1,19 @@
+[package]
+name = "lazy_dict"
+version = "0.1.0"
+authors = ["planet"]
+
+[dependencies]
+jni-sys = "0.3.0"
+sdl2 = "0.32.0-beta.2"
+log = "*"
+android_logger = "*"
+libc = "*"
+thread-id = "3.3.0"
+
+[lib]
+crate-type = ["dylib"]
+
+[profile.release]
+lto = true
+#panic = 'abort'

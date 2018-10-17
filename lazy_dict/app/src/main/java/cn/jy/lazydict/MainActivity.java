@@ -1,17 +1,17 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
-import android.app.Activity;
 import android.app.NativeActivity;
+import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
@@ -20,38 +20,29 @@ import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.view.Surface;
-import android.view.SurfaceView;
+import android.util.Size;
 import android.widget.Toast;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+import static android.hardware.camera2.CameraMetadata.LENS_FACING_BACK;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
 public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
-    //native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
-    private native void sendRgb(byte[] buffer, int width, int height);
-    private native void drawSurface(Surface surface);
-    private SurfaceView surface;
+
+    native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
+    private native void sendRgb(byte[] bytes, int width, int height, int rowStride);
 
     static {
-//        System.loadLibrary("allegro");
-//        System.loadLibrary("allegro_primitives");
-//        System.loadLibrary("allegro_image");
-//        System.loadLibrary("allegro_memfile");
-//        System.loadLibrary("allegro_font");
-//        System.loadLibrary("allegro_ttf");
-//        System.loadLibrary("allegro_audio");
-//        System.loadLibrary("allegro_acodec");
-//        System.loadLibrary("allegro_color");
-            System.loadLibrary("SDL2");
-            //System.loadLibrary("lazy_dict");
+        System.loadLibrary("SDL2");
+        System.loadLibrary("lazy_dict");
     }
-//    public MainActivity() {
-//        super("liblazy_dict.so");
-//    }
 
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
@@ -62,52 +53,23 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        surface = findViewById(R.id.surface);
-
-        //这里如果不延迟会导致ANativeWindow_fromSurface方法调用失败
-//        surface.postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                drawSurface(surface.getHolder().getSurface());
-//            }
-//        }, 3000);
-//        requestCameraPermission();
-
 //        new Handler().postDelayed(new Runnable() {
 //            @Override
 //            public void run() {
-//                Bitmap bitmap = null;
 //                try {
-//                    bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"));
-//                } catch (IOException e) {
+//                    BitmapFactory.Options options = new BitmapFactory.Options();
+//                    options.inPreferredConfig = Bitmap.Config.RGB_565;
+//                    Bitmap bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"), null, options);
+//                    Log.d(TAG,"new_buf="+bitmap.getByteCount());
+//                    sendRgb(bitmap, bitmap.getRowBytes());
+//                    Log.d(TAG,"sendRgb OK.");
+//                } catch (Throwable e) {
 //                    e.printStackTrace();
+//                    return;
 //                }
-//                int picw = bitmap.getWidth();
-//                int pich = bitmap.getHeight();
-//                int[] pix = new int[picw * pich];
-//                bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
-//                Log.d(TAG, "total="+picw*pich*3);
-//
-//                ByteArrayOutputStream bos = new ByteArrayOutputStream(picw*pich*3);
-//                //ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
-//                for (int y = 0; y < pich; y++){
-//                    for (int x = 0; x < picw; x++)
-//                    {
-//                        int index = y * picw + x;
-//                        int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
-//                        int g = (pix[index] >> 8) & 0xff;
-//                        int b = pix[index] & 0xff;
-//                        bos.write((byte) r);
-//                        bos.write((byte) g);
-//                        bos.write((byte) b);
-//                    }}
-//                byte data [] = bos.toByteArray();
-//                Log.d(TAG,"new_buf="+data.length);
-//                sendRgb(data, picw, pich);
-//                Log.d(TAG,"sendRgb OK."+data.length);
 //            }
-//        }, 5000);
+//        }, 2000);
+        requestCameraPermission();
     }
 
     private void requestCameraPermission() {
@@ -158,15 +120,15 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
 
     private void initCamera() {
         Log.d(TAG, "初始化相机");
-//        cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-//        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-//            try {
-//                cameraManager.openCamera(LENS_FACING_BACK + "", stateCallback, backgroundHandler);
-//            } catch (CameraAccessException e) {
-//                e.printStackTrace();
-//                toast("相机开启失败");
-//            }
-//        }
+        cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                cameraManager.openCamera(LENS_FACING_BACK + "", stateCallback, backgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+                toast("相机开启失败");
+            }
+        }
     }
 
     @Override
@@ -188,32 +150,13 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
         if (image != null) {
             //绘制预览图片
             try{
-                //send(image.getPlanes()[0].getBuffer(), image.getPlanes()[1].getBuffer(), image.getPlanes()[2].getBuffer(), image.getWidth(), image.getHeight());
-                ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                byte[] bytes = new byte[buffer.remaining()];
-                buffer.get(bytes);
-                //由缓冲区存入字节数组
-                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                int picw = bitmap.getWidth();
-                int pich = bitmap.getHeight();
-                int[] pix = new int[picw * pich];
-                bitmap.getPixels(pix, 0, picw, 0, 0, picw, pich);
-                Log.d(TAG, "hehetotal="+picw*pich*3);
-                ByteBuffer new_buf = ByteBuffer.allocate(picw*pich*3);
-                for (int y = 0; y < pich; y++){
-                    for (int x = 0; x < picw; x++)
-                    {
-                        int index = y * picw + x;
-                        int r = (pix[index] >> 16) & 0xff;     //bitwise shifting
-                        int g = (pix[index] >> 8) & 0xff;
-                        int b = pix[index] & 0xff;
-                        new_buf.put((byte) r);
-                        new_buf.put((byte) g);
-                        new_buf.put((byte) b);
-                    }}
-                Log.d(TAG,"nheheew_buf="+new_buf.array().length);
-                sendRgb(new_buf.array(), picw, pich);
-                Log.d(TAG,"sendRgb OK."+new_buf.array().length);
+                send(image.getPlanes()[0].getBuffer(), image.getPlanes()[1].getBuffer(), image.getPlanes()[2].getBuffer(), image.getWidth(), image.getHeight());
+//                Image.Plane plane = image.getPlanes()[0];
+//                Log.i(TAG, "plane.getBuffer().array().length="+plane.getBuffer().array().length+" getRowStride="+plane.getRowStride());
+//                sendRgb(plane.getBuffer().array(), image.getWidth(), image.getHeight(), plane.getRowStride());
+                //byte[] bytes = new byte[buffer.remaining()];
+                //buffer.get(bytes);
+
             }catch (Throwable t){
                 t.printStackTrace();
             }
@@ -223,7 +166,19 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     }
 
     private void requestPreview() throws CameraAccessException {
-        imageReader = ImageReader.newInstance(640, 480, ImageFormat.JPEG, /*maxImages*/2);
+        // 获取指定摄像头的特性
+        CameraCharacteristics characteristics
+                = cameraManager.getCameraCharacteristics(LENS_FACING_BACK+"");
+        // 获取摄像头支持的配置属性
+        StreamConfigurationMap map = characteristics.get(
+                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        List<Size> size = Arrays.asList(map.getOutputSizes(ImageFormat.YUV_420_888));
+        for (Size s : size){
+            Log.d(TAG, "预览大小: "+s.toString());
+        }
+        // 获取摄像头支持的最大尺寸
+        Size minSize = Collections.min(size, new CompareSizesByArea());
+        imageReader = ImageReader.newInstance(minSize.getWidth(), minSize.getHeight(), ImageFormat.YUV_420_888, /*maxImages*/2);
         imageReader.setOnImageAvailableListener(this, backgroundHandler);
         final CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
         builder.addTarget(imageReader.getSurface());
@@ -252,6 +207,17 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
                 toast("预览会话创建失败");
             }
         }, backgroundHandler);
+    }
+
+    // 为Size定义一个比较器Comparator
+    static class CompareSizesByArea implements Comparator<Size> {
+        @Override
+        public int compare(Size lhs, Size rhs)
+        {
+            // 强转为long保证不会发生溢出
+            return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
+                    (long) rhs.getWidth() * rhs.getHeight());
+        }
     }
 
     private void toast(String s){

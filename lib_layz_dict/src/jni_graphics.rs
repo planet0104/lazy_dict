@@ -1,5 +1,10 @@
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+
 use std::os::raw::{c_int, c_void, c_uint};
 use jni::sys::{JNIEnv, jobject};
+use jni;
 //Bitmap作为
 
 const ANDROID_BITMAP_FORMAT_NONE:i32 = 0;
@@ -41,4 +46,33 @@ extern "C" {
 
 	///调用此方法可以平衡对AndroidBitmap_lockPixels的成功调用
 	pub fn AndroidBitmap_unlockPixels(env: *mut JNIEnv, jbitmap: jobject) -> c_int;
+}
+
+pub fn unlock_bitmap(env: &jni::JNIEnv, bitmap: jobject){
+	let ret = unsafe{ AndroidBitmap_unlockPixels(env.get_native_interface(), bitmap) };
+	trace!("AndroidBitmap_unlockPixels:{}", ret);
+}
+
+pub fn lock_bitmap<'a>(env: &jni::JNIEnv, bitmap: jobject) -> Result<(AndroidBitmapInfo, &'a mut [u8]), String>{
+	let mut info = AndroidBitmapInfo{
+		width: 0,
+		height: 0,
+		stride: 0,
+		format: 0,
+		flags: 0,
+	};
+	
+	let ret = unsafe{AndroidBitmap_getInfo(env.get_native_interface(), bitmap, &mut info)};
+	if ret<0{
+		return Result::Err(format!("AndroidBitmap_getInfo调用失败! {}", ret));
+	}
+  	trace!("图片 {}x{} format={}", info.width, info.height, info.format);
+
+	let mut pixels = 0 as *mut c_void;
+    let ret = unsafe{ AndroidBitmap_lockPixels(env.get_native_interface(), bitmap, &mut pixels) };
+    if ret<0{
+      return Result::Err(format!("AndroidBitmap_lockPixels! {}", ret));
+    }
+    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.width*info.height*2) as usize)};
+	Ok((info, pixels))
 }
