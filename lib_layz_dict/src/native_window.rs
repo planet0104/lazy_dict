@@ -35,7 +35,6 @@ pub const WINDOW_FORMAT_RGBX_8888: i32 = 2;
 pub const WINDOW_FORMAT_RGB_888: i32 = 3;
 pub const WINDOW_FORMAT_RGB_565: i32 = 4;
 
-#[link(name = "nativewindow")]
 extern "C" {
 	pub fn ANativeWindow_acquire(window: *mut ANativeWindow);
     pub fn ANativeWindow_getFormat(window: *mut ANativeWindow) -> i32;
