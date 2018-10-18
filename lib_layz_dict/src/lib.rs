@@ -273,10 +273,10 @@ fn yuv_to_rgb(mut y:i32, mut u:i32, mut v:i32) -> u32{
 	g = (g>>10) & 0xff;
 	b = (b>>10) & 0xff;
 
-	0xff000000 | (r << 16) as u32 | (g << 8) as u32 | b as u32
+	0xff000000 | (r as u32) << 16 | (g as u32) << 8 | b as u32
 }
 
-fn yuv_420_to_rgba_8888(y_data: &mut[u8], u_data: &mut[u8], v_data:&mut[u8], output:&mut[u8], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
+fn yuv_420_to_rgba_8888(y_data: &mut[u8], u_data: &mut[u8], v_data:&mut[u8], output:&mut[u32], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
 	let mut iout = 0;
 	for y in 0..height{
 		let iy = y_row_stride*y;
@@ -285,14 +285,8 @@ fn yuv_420_to_rgba_8888(y_data: &mut[u8], u_data: &mut[u8], v_data:&mut[u8], out
 		let iv = uv_row_start;
 		for x in 0..width{
 			let uv_offset = (x>>1)*uv_pixel_stride;
-			use bytes::{BytesMut, BufMut, LittleEndian, BigEndian};
 			let color = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
-			let mut buf = [0; 4];
-			LittleEndian::read_u32(&buf);
-			output[iout] = 255; iout+=1;
-			output[iout] = b; iout+=1;
-			output[iout] = g; iout+=1;
-			output[iout] = r; iout+=1;
+			output[iout] = color; iout+=1;
 		}
 	}
 }
@@ -308,14 +302,19 @@ pub unsafe extern fn Java_cn_jy_lazydict_MainActivity_send(env: JNIEnv, _: JClas
 			let y_src = env.get_direct_buffer_address(y).unwrap();
 			let u_src = env.get_direct_buffer_address(u).unwrap();
 			let v_src = env.get_direct_buffer_address(v).unwrap();
-			let mut rgba_data = vec![255; (width*height*4) as usize];
+			let mut rgba_data:Vec<u32> = vec![0xff000000; (width*height) as usize];
 			yuv_420_to_rgba_8888(y_src, u_src, v_src, &mut rgba_data, width, height, y_row_stride, uv_row_stride, uv_pixel_stride);
 
 			// trace!("yuv_to_rgb OK. len={}", rgba_data.len());
+			let data_ptr = 
+				std::slice::from_raw_parts_mut(
+					rgba_data.as_ptr() as *mut u8,
+					rgba_data.len() * std::mem::size_of::<u32>(),
+				);
 
 			let texture_creator = canvas.texture_creator();
 			// trace!("画图 0004");
-			let image_surface = Surface::from_data(rgba_data.as_mut_slice(), width as u32, height as u32, width as u32*4, PixelFormatEnum::RGBA8888).unwrap();
+			let image_surface = Surface::from_data(data_ptr, width as u32, height as u32, width as u32*4, PixelFormatEnum::RGBA8888).unwrap();
 			// trace!("画图 0005");
 			let create_ret = texture_creator.create_texture_from_surface(image_surface);
 			match create_ret{
