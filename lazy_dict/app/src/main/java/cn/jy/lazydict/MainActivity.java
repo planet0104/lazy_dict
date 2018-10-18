@@ -16,12 +16,18 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.Type;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.util.Size;
 import android.widget.Toast;
+
+import com.nextbreakpoint.ffmpeg4java.AVFrame;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -36,7 +42,7 @@ import static android.hardware.camera2.CameraMetadata.LENS_FACING_BACK;
 public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
-    native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height);
+    native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride);
     private native void sendRgb(byte[] bytes, int width, int height, int rowStride);
 
     static {
@@ -69,7 +75,6 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
 //                }
 //            }
 //        }, 2000);
-        requestCameraPermission();
     }
 
     private void requestCameraPermission() {
@@ -150,7 +155,30 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
         if (image != null) {
             //绘制预览图片
             try{
-                send(image.getPlanes()[0].getBuffer(), image.getPlanes()[1].getBuffer(), image.getPlanes()[2].getBuffer(), image.getWidth(), image.getHeight());
+
+                Image.Plane[] plane = image.getPlanes();
+//                byte[][] mYUVBytes = new byte[plane.length][];
+//                for (int i = 0; i < plane.length; ++i) {
+//                    mYUVBytes[i] = new byte[plane[i].getBuffer().capacity()];
+//                }
+//                int[] mRGBBytes = new int[640 * 480];
+
+//                for (int i = 0; i < plane.length; ++i) {
+//                    plane[i].getBuffer().get(mYUVBytes[i]);
+//                }
+
+                final int yRowStride = plane[0].getRowStride();
+                final int uvRowStride = plane[1].getRowStride();
+                final int uvPixelStride = plane[1].getPixelStride();
+
+                send(plane[0].getBuffer(),
+                        plane[1].getBuffer(),
+                        plane[2].getBuffer(),
+                        image.getWidth(),
+                        image.getHeight(),
+                        yRowStride,
+                        uvRowStride,
+                        uvPixelStride);
 //                Image.Plane plane = image.getPlanes()[0];
 //                Log.i(TAG, "plane.getBuffer().array().length="+plane.getBuffer().array().length+" getRowStride="+plane.getRowStride());
 //                sendRgb(plane.getBuffer().array(), image.getWidth(), image.getHeight(), plane.getRowStride());
@@ -177,7 +205,8 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
             Log.d(TAG, "预览大小: "+s.toString());
         }
         // 获取摄像头支持的最大尺寸
-        Size minSize = Collections.min(size, new CompareSizesByArea());
+        //Size minSize = Collections.min(size, new CompareSizesByArea());
+        Size minSize = size.get(12);
         imageReader = ImageReader.newInstance(minSize.getWidth(), minSize.getHeight(), ImageFormat.YUV_420_888, /*maxImages*/2);
         imageReader.setOnImageAvailableListener(this, backgroundHandler);
         final CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -218,6 +247,21 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
             return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
                     (long) rhs.getWidth() * rhs.getHeight());
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        //开始预览
+        requestCameraPermission();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        //停止预览
+        cameraDevice.close();
+        cameraManager = null;
     }
 
     private void toast(String s){

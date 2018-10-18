@@ -8,11 +8,11 @@
 
 mkdir NDK
 
-PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 26 --arch arm64 --install-dir C:\NDK\arm64
+PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 21 --arch arm64 --install-dir C:\NDK\arm64
 
-PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 26 --arch arm --install-dir C:\NDK\arm
+PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 21 --arch arm --install-dir C:\NDK\arm
 
-PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 26 --arch x86 --install-dir C:\NDK\x86
+PS C:\> python C:\android-ndk-r17-beta2\build\tools\make_standalone_toolchain.py --api 21 --arch x86 --install-dir C:\NDK\x86
 
 
 4、配置.cargo

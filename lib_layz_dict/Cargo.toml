@@ -11,7 +11,7 @@ jni = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
-bytes = "*"
+bytes = "0.4.10"
 sdl2 = { version = "0.32.0-beta.2" }
 
 image = "*"
