@@ -1,10 +1,12 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
-import android.app.NativeActivity;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -16,18 +18,14 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
-import android.renderscript.Allocation;
-import android.renderscript.Element;
-import android.renderscript.RenderScript;
-import android.renderscript.Type;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.util.Size;
+import android.view.Surface;
+import android.view.SurfaceView;
 import android.widget.Toast;
-
-import com.nextbreakpoint.ffmpeg4java.AVFrame;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -39,16 +37,18 @@ import static android.hardware.camera2.CameraMetadata.LENS_FACING_BACK;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
-public class MainActivity extends NativeActivity implements ImageReader.OnImageAvailableListener {
+public class MainActivity extends Activity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
-    native void send(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride);
-    private native void sendRgb(byte[] bytes, int width, int height, int rowStride);
+    native void renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
+    native void setPreviewSurface(Surface surface);
 
     static {
         System.loadLibrary("SDL2");
         System.loadLibrary("lazy_dict");
     }
+
+    private int sensor_orientation = 270;
 
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
@@ -56,9 +56,14 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     private CameraCaptureSession cameraCaptureSession;
     private Handler backgroundHandler = new Handler();
 
+    private SurfaceView preview_surface;
+    private Bitmap preivew_buffer;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        preview_surface = findViewById(R.id.preview_surface);
 //        new Handler().postDelayed(new Runnable() {
 //            @Override
 //            public void run() {
@@ -149,42 +154,33 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
         }
     }
 
+    long lastTime = System.currentTimeMillis();
+
     @Override
     public void onImageAvailable(ImageReader imageReader) {
+
+        long duration = System.currentTimeMillis()-lastTime;
+        lastTime = System.currentTimeMillis();
+        //经过测试, 这里帧率最高为30左右, 如果手机性能差，过高的分辨率帧率可能达不到30帧
+        Log.d(TAG, "帧时间="+duration+"ms");
+
         Image image = imageReader.acquireNextImage();
         if (image != null) {
             //绘制预览图片
             try{
-
                 Image.Plane[] plane = image.getPlanes();
-//                byte[][] mYUVBytes = new byte[plane.length][];
-//                for (int i = 0; i < plane.length; ++i) {
-//                    mYUVBytes[i] = new byte[plane[i].getBuffer().capacity()];
-//                }
-//                int[] mRGBBytes = new int[640 * 480];
-
-//                for (int i = 0; i < plane.length; ++i) {
-//                    plane[i].getBuffer().get(mYUVBytes[i]);
-//                }
-
                 final int yRowStride = plane[0].getRowStride();
                 final int uvRowStride = plane[1].getRowStride();
                 final int uvPixelStride = plane[1].getPixelStride();
-
-                send(plane[0].getBuffer(),
+                renderPreview(plane[0].getBuffer(),
                         plane[1].getBuffer(),
                         plane[2].getBuffer(),
                         image.getWidth(),
                         image.getHeight(),
                         yRowStride,
                         uvRowStride,
-                        uvPixelStride);
-//                Image.Plane plane = image.getPlanes()[0];
-//                Log.i(TAG, "plane.getBuffer().array().length="+plane.getBuffer().array().length+" getRowStride="+plane.getRowStride());
-//                sendRgb(plane.getBuffer().array(), image.getWidth(), image.getHeight(), plane.getRowStride());
-                //byte[] bytes = new byte[buffer.remaining()];
-                //buffer.get(bytes);
-
+                        uvPixelStride,
+                        sensor_orientation);
             }catch (Throwable t){
                 t.printStackTrace();
             }
@@ -204,9 +200,21 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
         for (Size s : size){
             Log.d(TAG, "预览大小: "+s.toString());
         }
+        //设置竖向显示
+        sensor_orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        Log.d(TAG, "ORIENTATION========="+sensor_orientation);
         // 获取摄像头支持的最大尺寸
-        //Size minSize = Collections.min(size, new CompareSizesByArea());
-        Size minSize = size.get(12);
+//        Size minSize = Collections.min(size, new CompareSizesByArea());
+        Size minSize = size.get(6);
+        Log.d(TAG, "minSize========="+minSize.toString());
+        preview_surface.getHolder().setFixedSize(minSize.getHeight(), minSize.getWidth());
+        preview_surface.getHolder().setFormat(PixelFormat.RGB_888);
+        preview_surface.post(new Runnable() {
+            @Override
+            public void run() {
+                setPreviewSurface(preview_surface.getHolder().getSurface());
+            }
+        });
         imageReader = ImageReader.newInstance(minSize.getWidth(), minSize.getHeight(), ImageFormat.YUV_420_888, /*maxImages*/2);
         imageReader.setOnImageAvailableListener(this, backgroundHandler);
         final CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -260,12 +268,13 @@ public class MainActivity extends NativeActivity implements ImageReader.OnImageA
     protected void onPause() {
         super.onPause();
         //停止预览
+        cameraCaptureSession.close();
         cameraDevice.close();
         cameraManager = null;
     }
 
     private void toast(String s){
-        Toast.makeText(this, s, Toast.LENGTH_LONG).show();
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
         Log.d(TAG, s);
     }
 }
