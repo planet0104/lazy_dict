@@ -35,6 +35,16 @@ pub const WINDOW_FORMAT_RGBX_8888: i32 = 2;
 pub const WINDOW_FORMAT_RGB_888: i32 = 3;
 pub const WINDOW_FORMAT_RGB_565: i32 = 4;
 
+pub const ANATIVEWINDOW_TRANSFORM_IDENTITY: i32            = 0x00;
+pub const ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL: i32   = 0x01;
+pub const ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL: i32     = 0x02;
+pub const ANATIVEWINDOW_TRANSFORM_ROTATE_90: i32           = 0x04;
+
+pub const ANATIVEWINDOW_TRANSFORM_ROTATE_180: i32          = ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL |
+                                                  ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL;
+pub const ANATIVEWINDOW_TRANSFORM_ROTATE_270: i32          = ANATIVEWINDOW_TRANSFORM_ROTATE_180 |
+                                                  ANATIVEWINDOW_TRANSFORM_ROTATE_90;
+
 extern "C" {
 	pub fn ANativeWindow_acquire(window: *mut ANativeWindow);
     pub fn ANativeWindow_getFormat(window: *mut ANativeWindow) -> i32;
