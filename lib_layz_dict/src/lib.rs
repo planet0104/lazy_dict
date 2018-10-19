@@ -6,6 +6,7 @@ extern crate lazy_static;
 extern crate android_logger;
 extern crate zip;
 extern crate image;
+extern crate scoped_threadpool;
 use log::Level;
 extern crate jni;
 use std::time::Instant;
@@ -52,18 +53,18 @@ unsafe impl Send for InputQueue {}
 
 pub struct Application{
 	window : Option<*mut ANativeWindow>, //Surface对应的NativeWindow
-	preview_rgb_buffer: &'static Vec<u8>, //yuv420转换成rgb888使用的buffer
+	preview_rgb_buffer: Vec<u8>, //yuv420转换成rgb888使用的buffer
 	event_loop_sender: Option<Sender<i32>>, //
 }
 impl Application{
 	pub fn new() -> Application{
-		Application{ window: None, preview_rgb_buffer: &'static vec![], event_loop_sender: None}
+		Application{ window: None, preview_rgb_buffer: vec![], event_loop_sender: None}
 	}
 }
 
-lazy_static!{
-	ref PREIVEW_BUFFER = 
-}
+// lazy_static!{
+// 	ref PREIVEW_BUFFER = 
+// }
 
 thread_local!{
 	pub static APP: RefCell<Application> = RefCell::new(Application::new());
@@ -205,68 +206,53 @@ fn yuv_to_rgb(mut y:i32, mut u:i32, mut v:i32) -> (u8,u8,u8){
 
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::mpsc;
-
-fn yuv_420_to_rgb_888(y_data: Vec<u8>, u_data: Vec<u8>, v_data:Vec<u8>, output:&'static mut[u8], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
+use scoped_threadpool::Pool;
+fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&mut[u8], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
 
 	//两个线程去执行转换
-	let y_data = Arc::new(y_data);
-	let u_data = Arc::new(u_data);
-	let v_data = Arc::new(v_data);
-
+	let mut pool = Pool::new(2);
 	let output = Arc::new(Mutex::new(output));
 	let iout = Arc::new(Mutex::new(0));
-
-	let (tx, rx) = mpsc::channel();
-	let first_count = height/2;
 	
-	let (y_data_clone, u_data_clone, v_data_clone, output_clone, iout_clone, tx_clone) = (y_data.clone(), u_data.clone(), v_data.clone(), output.clone(), iout.clone(), tx.clone());
-	//第一个线程 0~1/2行
-	thread::spawn(move|| {
-		for y in 0..first_count{
-			let iy = y_row_stride*y;
-			let uv_row_start = uv_row_stride*(y>>1);
-			let iu = uv_row_start;
-			let iv = uv_row_start;
-			for x in 0..width{
-				let uv_offset = (x>>1)*uv_pixel_stride;
-				let (r, g, b) = yuv_to_rgb(y_data_clone[(iy+x) as usize] as i32, u_data_clone[(iu+uv_offset) as usize] as i32, v_data_clone[(iv+uv_offset) as usize] as i32);
-				let mut output = output_clone.lock().unwrap();
-				let mut iout =  iout_clone.lock().unwrap();
-				output[*iout] = r; *iout+=1;
-				output[*iout] = g; *iout+=1;
-				output[*iout] = b; *iout+=1;
+	pool.scoped(|scope| {
+		let first_count = height/2;
+		let (output_clone, iout_clone) = (output.clone(), iout.clone());
+		scope.execute(move || {
+			for y in 0..first_count{
+				let iy = y_row_stride*y;
+				let uv_row_start = uv_row_stride*(y>>1);
+				let iu = uv_row_start;
+				let iv = uv_row_start;
+				for x in 0..width{
+					let uv_offset = (x>>1)*uv_pixel_stride;
+					let (r, g, b) = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
+					let mut output = output_clone.lock().unwrap();
+					let mut iout =  iout_clone.lock().unwrap();
+					output[*iout] = r; *iout+=1;
+					output[*iout] = g; *iout+=1;
+					output[*iout] = b; *iout+=1;
+				}
 			}
-		}
-		tx.send(());
-	});
+		});
 
-	//第二个线程 剩下的行
-	thread::spawn(move|| {
-		for y in first_count..height{
-			let iy = y_row_stride*y;
-			let uv_row_start = uv_row_stride*(y>>1);
-			let iu = uv_row_start;
-			let iv = uv_row_start;
-			for x in 0..width{
-				let uv_offset = (x>>1)*uv_pixel_stride;
-				let (r, g, b) = yuv_to_rgb(y_data_clone[(iy+x) as usize] as i32, u_data_clone[(iu+uv_offset) as usize] as i32, v_data_clone[(iv+uv_offset) as usize] as i32);
-				let mut output = output_clone.lock().unwrap();
-				let mut iout =  iout_clone.lock().unwrap();
-				output[*iout] = r; *iout+=1;
-				output[*iout] = g; *iout+=1;
-				output[*iout] = b; *iout+=1;
+		scope.execute(move || {
+			for y in first_count..width{
+				let iy = y_row_stride*y;
+				let uv_row_start = uv_row_stride*(y>>1);
+				let iu = uv_row_start;
+				let iv = uv_row_start;
+				for x in 0..width{
+					let uv_offset = (x>>1)*uv_pixel_stride;
+					let (r, g, b) = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
+					let mut output = output.lock().unwrap();
+					let mut iout =  iout.lock().unwrap();
+					output[*iout] = r; *iout+=1;
+					output[*iout] = g; *iout+=1;
+					output[*iout] = b; *iout+=1;
+				}
 			}
-		}
-		tx.send(());
-	});
-
-	for i in 0..2{
-		rx.recv();
-	}
-
-	
-
+		});
+    });
 	/*
 	//    old
 
@@ -329,9 +315,9 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class
 		//创建preview buffer
 		if app.preview_rgb_buffer.len() != buffer_size{
 			info!("创建preview buffer {}x{}", raw_width, raw_height);
-			app.preview_rgb_buffer = &vec![255; buffer_size];
+			app.preview_rgb_buffer = vec![255; buffer_size];
 		}
-		yuv_420_to_rgb_888(Vec::from(y_src), Vec::from(u_src), Vec::from(v_src), &mut app.preview_rgb_buffer, raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
+		yuv_420_to_rgb_888(y_src, u_src, v_src, &mut app.preview_rgb_buffer, raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
 		trace!("转换rgb耗时:{}ms", utils::duration_to_milis(&now.elapsed())); now = Instant::now();
 
 		//第二步 旋转图像(copy form preview_rgb_buffer)
