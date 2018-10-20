@@ -4,7 +4,6 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -25,6 +24,7 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.SurfaceView;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.nio.ByteBuffer;
@@ -34,14 +34,15 @@ import java.util.Comparator;
 import java.util.List;
 
 import static android.hardware.camera2.CameraMetadata.LENS_FACING_BACK;
+import static android.hardware.camera2.CameraMetadata.LENS_FACING_FRONT;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
 public class MainActivity extends Activity implements ImageReader.OnImageAvailableListener {
     static final String TAG = MainActivity.class.getSimpleName();
 
-    native void renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
-    native void setPreviewSurface(Surface surface);
+    native int[] renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
+    native boolean setPreviewSurface(Surface surface);
 
     static {
         System.loadLibrary("SDL2");
@@ -56,14 +57,17 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     private CameraCaptureSession cameraCaptureSession;
     private Handler backgroundHandler = new Handler();
 
+    private FrameLayout fl_root;
     private SurfaceView preview_surface;
-    private Bitmap preivew_buffer;
+
+    final String CMAERA_ID = CameraCharacteristics.LENS_FACING_FRONT+"";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         preview_surface = findViewById(R.id.preview_surface);
+        fl_root = findViewById(R.id.fl_root);
 //        new Handler().postDelayed(new Runnable() {
 //            @Override
 //            public void run() {
@@ -133,7 +137,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             try {
-                cameraManager.openCamera(LENS_FACING_BACK + "", stateCallback, backgroundHandler);
+                cameraManager.openCamera(CMAERA_ID, stateCallback, backgroundHandler);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
                 toast("相机开启失败");
@@ -172,7 +176,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                 final int yRowStride = plane[0].getRowStride();
                 final int uvRowStride = plane[1].getRowStride();
                 final int uvPixelStride = plane[1].getPixelStride();
-                renderPreview(plane[0].getBuffer(),
+                int[] ret = renderPreview(plane[0].getBuffer(),
                         plane[1].getBuffer(),
                         plane[2].getBuffer(),
                         image.getWidth(),
@@ -181,6 +185,28 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                         uvRowStride,
                         uvPixelStride,
                         sensor_orientation);
+                if(ret != null && ret.length==2){
+                    if(ret[0]!=-1&&ret[1]!=-1){
+                        //调整SurfaceView大小
+                        int screen_width = fl_root.getMeasuredWidth();
+                        int screen_height = fl_root.getMeasuredHeight();
+                        int surface_height = (int)((float)screen_width*ret[1]/(float)ret[0]);
+                        int surface_width = screen_width;
+
+                        //如果高度小于屏幕高度, 调整高度
+                        if(surface_height<screen_height){
+                            surface_width = (int)(screen_height*(float)surface_width/(float)surface_height);
+                            surface_height = screen_height;
+                        }
+                        //Log.d(TAG, "renderPreview="+ret[0]+"x"+ret[1]+" surface_height="+surface_height);
+                        if(preview_surface.getMeasuredHeight() != surface_height
+                                || preview_surface.getMeasuredWidth() != surface_width){
+                            preview_surface.getLayoutParams().height = surface_height;
+                            preview_surface.getLayoutParams().width = surface_width;
+                            preview_surface.setLayoutParams(preview_surface.getLayoutParams());
+                        }
+                    }
+                }
             }catch (Throwable t){
                 t.printStackTrace();
             }
@@ -190,22 +216,25 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     }
 
     private void requestPreview() throws CameraAccessException {
+
         // 获取指定摄像头的特性
         CameraCharacteristics characteristics
-                = cameraManager.getCameraCharacteristics(LENS_FACING_BACK+"");
+                = cameraManager.getCameraCharacteristics(CMAERA_ID);
         // 获取摄像头支持的配置属性
         StreamConfigurationMap map = characteristics.get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        List<Size> size = Arrays.asList(map.getOutputSizes(ImageFormat.YUV_420_888));
-        for (Size s : size){
-            Log.d(TAG, "预览大小: "+s.toString());
+        Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
+        Arrays.sort(sizes, new CompareSizesByArea());
+        Size minSize = sizes[0];
+        for (Size s : sizes){
+            if (s.getWidth()<=720&&s.getHeight()<=720){
+                minSize = s;
+            }
+            Log.d(TAG, "预览大小Size="+s.toString());
         }
         //设置竖向显示
         sensor_orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
         Log.d(TAG, "ORIENTATION========="+sensor_orientation);
-        // 获取摄像头支持的最大尺寸
-//        Size minSize = Collections.min(size, new CompareSizesByArea());
-        Size minSize = size.get(6);
         Log.d(TAG, "minSize========="+minSize.toString());
         preview_surface.getHolder().setFixedSize(minSize.getHeight(), minSize.getWidth());
         preview_surface.getHolder().setFormat(PixelFormat.RGB_888);
@@ -268,8 +297,8 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     protected void onPause() {
         super.onPause();
         //停止预览
-        cameraCaptureSession.close();
-        cameraDevice.close();
+        if(cameraCaptureSession != null) cameraCaptureSession.close();
+        if(cameraDevice!=null) cameraDevice.close();
         cameraManager = null;
     }
 

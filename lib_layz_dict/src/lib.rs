@@ -15,6 +15,7 @@ use self::jni::objects::{JClass};
 use jni::sys::{jint, jbyteArray};
 use std::os::raw::{c_void};
 extern crate sdl2;
+extern crate rayon;
 use sdl2::surface::Surface;
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
@@ -173,107 +174,6 @@ pub extern fn JNI_OnLoad(_vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> 
 	jni::sys::JNI_VERSION_1_6
 }
 
-// This value is 2 ^ 18 - 1, and is used to clamp the RGB values before their
-// ranges
-// are normalized to eight bits.
-const K_MAX_CHANNEL_VALUE:i32 = 262143;
-///https://github.com/xvolica/Camera2-Yuv2Rgb/blob/master/jni/yuv2rgb.cpp
-fn yuv_to_rgb(mut y:i32, mut u:i32, mut v:i32) -> (u8,u8,u8){
-	use std::cmp::{min, max};
-
-	y -= 16;
-	u -= 128;
-	v -= 128;
-	if y<0{
-		y=0;
-	}
-
-	let mut r = 1192 * y + 1634 * v;
-	let mut g = 1192 * y - 833 * v - 400 * u;
-	let mut b = 1192 * y + 2066 * u;
-
-	r = min(K_MAX_CHANNEL_VALUE, max(0, r));
-	g = min(K_MAX_CHANNEL_VALUE, max(0, g));
-	b = min(K_MAX_CHANNEL_VALUE, max(0, b));
-
-	r = (r>>10) & 0xff;
-	g = (g>>10) & 0xff;
-	b = (b>>10) & 0xff;
-
-	//0xff000000 | (r as u32) << 24 | (g as u32) << 16 | (b as u32)<<8
-	(r as u8, g as u8, b as u8)
-}
-
-use std::sync::Arc;
-use std::sync::Mutex;
-use scoped_threadpool::Pool;
-fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&mut[u8], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
-
-	//两个线程去执行转换
-	let mut pool = Pool::new(2);
-	let output = Arc::new(Mutex::new(output));
-	let iout = Arc::new(Mutex::new(0));
-	
-	pool.scoped(|scope| {
-		let first_count = height/2;
-		let (output_clone, iout_clone) = (output.clone(), iout.clone());
-		scope.execute(move || {
-			for y in 0..first_count{
-				let iy = y_row_stride*y;
-				let uv_row_start = uv_row_stride*(y>>1);
-				let iu = uv_row_start;
-				let iv = uv_row_start;
-				for x in 0..width{
-					let uv_offset = (x>>1)*uv_pixel_stride;
-					let (r, g, b) = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
-					let mut output = output_clone.lock().unwrap();
-					let mut iout =  iout_clone.lock().unwrap();
-					output[*iout] = r; *iout+=1;
-					output[*iout] = g; *iout+=1;
-					output[*iout] = b; *iout+=1;
-				}
-			}
-		});
-
-		scope.execute(move || {
-			for y in first_count..width{
-				let iy = y_row_stride*y;
-				let uv_row_start = uv_row_stride*(y>>1);
-				let iu = uv_row_start;
-				let iv = uv_row_start;
-				for x in 0..width{
-					let uv_offset = (x>>1)*uv_pixel_stride;
-					let (r, g, b) = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
-					let mut output = output.lock().unwrap();
-					let mut iout =  iout.lock().unwrap();
-					output[*iout] = r; *iout+=1;
-					output[*iout] = g; *iout+=1;
-					output[*iout] = b; *iout+=1;
-				}
-			}
-		});
-    });
-	/*
-	//    old
-
-	let mut iout = 0;
-	for y in 0..height{
-		let iy = y_row_stride*y;
-		let uv_row_start = uv_row_stride*(y>>1);
-		let iu = uv_row_start;
-		let iv = uv_row_start;
-		for x in 0..width{
-			let uv_offset = (x>>1)*uv_pixel_stride;
-			let (r, g, b) = yuv_to_rgb(y_data[(iy+x) as usize] as i32, u_data[(iu+uv_offset) as usize] as i32, v_data[(iv+uv_offset) as usize] as i32);
-			output[iout] = r; iout+=1;
-			output[iout] = g; iout+=1;
-			output[iout] = b; iout+=1;
-		}
-	}
-
-	*/
-}
-
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_MainActivity_setPreviewSurface(env: JNIEnv, _class: JClass, surface: jni::sys::jobject) -> jboolean{
 	let window = unsafe{ ANativeWindow_fromSurface(env.get_native_interface(), surface) };
@@ -289,9 +189,9 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_setPreviewSurface(env: JNIEnv, _c
 }
 
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, raw_width:jint, raw_height:jint, y_row_stride: jint, uv_row_stride:jint, uv_pixel_stride:jint, sensor_orientation: jint) -> jboolean{
-	trace!("send>>Java_cn_jy_lazydict_MainActivity_send width={}, height={} y_row_stride={} uv_row_stride={} uv_pixel_stride={}", raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
-	let mut success = false;
+pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, raw_width:jint, raw_height:jint, y_row_stride: jint, uv_row_stride:jint, uv_pixel_stride:jint, sensor_orientation: jint) -> jni::sys::jintArray{
+	//trace!("send>>Java_cn_jy_lazydict_MainActivity_send width={}, height={} y_row_stride={} uv_row_stride={} uv_pixel_stride={}", raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
+	let mut result = [-1, -1];
 
 	APP.with(|app|{
 		let mut app = app.borrow_mut();
@@ -308,39 +208,33 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class
 		//第一步,将YUV420转换为RGB888
 		let mut now = Instant::now();
 		let (raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride) = (raw_width as i32, raw_height as i32, y_row_stride as i32, uv_row_stride as i32, uv_pixel_stride as i32);
-		let y_src = env.get_direct_buffer_address(y).unwrap();
-		let u_src = env.get_direct_buffer_address(u).unwrap();
-		let v_src = env.get_direct_buffer_address(v).unwrap();
+		let (y_src, u_src, v_src) = (env.get_direct_buffer_address(y), env.get_direct_buffer_address(u), env.get_direct_buffer_address(v));
+		if y_src.is_err() || u_src.is_err() || v_src.is_err(){
+			error!("请检查yuv数据是为空!");
+			return;
+		}
+		let (y_src, u_src, v_src) = (y_src.unwrap(), u_src.unwrap(), v_src.unwrap());
 		let buffer_size = (raw_width*raw_height*PIXEL_SIZE) as usize;
 		//创建preview buffer
 		if app.preview_rgb_buffer.len() != buffer_size{
 			info!("创建preview buffer {}x{}", raw_width, raw_height);
 			app.preview_rgb_buffer = vec![255; buffer_size];
 		}
-		yuv_420_to_rgb_888(y_src, u_src, v_src, &mut app.preview_rgb_buffer, raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
+		utils::yuv_420_to_rgb_888(y_src, u_src, v_src, &mut app.preview_rgb_buffer, raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
 		trace!("转换rgb耗时:{}ms", utils::duration_to_milis(&now.elapsed())); now = Instant::now();
 
 		//第二步 旋转图像(copy form preview_rgb_buffer)
-		let image_buffer:Option<ImageBuffer<Rgb<u8>, Vec<u8>>> = ImageBuffer::from_vec(raw_width as u32, raw_height as u32, app.preview_rgb_buffer.clone());
-		if image_buffer.is_none(){
-			error!("ImageBuffer创建失败!");
-			return;
-		}
-		//create new buffer
-		let rotate_buffer = match sensor_orientation{
-			90 => image::imageops::rotate90(&image_buffer.unwrap()),
-			180 => image::imageops::rotate180(&image_buffer.unwrap()),
-			270 => image::imageops::rotate270(&image_buffer.unwrap()),
-			_ => image_buffer.unwrap()
+		let mut rotate_raw_buffer = app.preview_rgb_buffer.clone();
+		let (width, height) = match sensor_orientation{
+			90 => utils::rotate90(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
+			180 => utils::rotate180(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
+			270 => utils::rotate270(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
+			_ => (raw_width as usize, raw_height as usize)
 		};
-		let (width, height) = (rotate_buffer.width(), rotate_buffer.height());
 
 		trace!("图片旋转成功，旋转角度:{} 图片大小{}x{} 耗时{}ms", sensor_orientation, width, height, utils::duration_to_milis(&now.elapsed()));
 
-		//copy?
-		let rotate_raw_buffer = rotate_buffer.into_raw();
-
-		success = lock_native_window(app.window.unwrap(), |(buffer, pixels)|{
+		if lock_native_window(app.window.unwrap(), |(buffer, pixels)|{
 			let now = Instant::now();
 			//复制像素
 			let line_size = (width as i32*PIXEL_SIZE) as usize;
@@ -352,8 +246,16 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class
 				line_id += (buffer.stride*PIXEL_SIZE) as usize;
 			}
 			trace!("像素复制耗时{}ms", utils::duration_to_milis(&now.elapsed()));
-		});
+		}){
+			result[0] = width as i32;
+			result[1] = height as i32;
+		}
 	});
 
-	success as jboolean
+	if let Ok(arr) = env.new_int_array(2){
+		let _ = env.set_int_array_region(arr, 0, &[result[0] as jint, result[1] as jint]);
+		arr
+	}else{
+		0 as jni::sys::jintArray
+	}
 }

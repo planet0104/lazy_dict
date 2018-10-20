@@ -14,6 +14,7 @@ zip = { version = "*", features = ["deflate-zlib"], default-features = false }
 bytes = "0.4.10"
 sdl2 = { version = "0.32.0-beta.2" }
 scoped_threadpool = "0.1.9"
+rayon = "1.0.2"
 image = "*"
 
 [lib]
