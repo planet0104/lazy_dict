@@ -31,10 +31,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
-
-import static android.hardware.camera2.CameraMetadata.LENS_FACING_BACK;
-import static android.hardware.camera2.CameraMetadata.LENS_FACING_FRONT;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
@@ -53,14 +49,13 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
-    private ImageReader imageReader;
     private CameraCaptureSession cameraCaptureSession;
     private Handler backgroundHandler = new Handler();
 
     private FrameLayout fl_root;
     private SurfaceView preview_surface;
 
-    final String CMAERA_ID = CameraCharacteristics.LENS_FACING_FRONT+"";
+    final String CAMERA_ID = CameraCharacteristics.LENS_FACING_FRONT+"";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -137,7 +132,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             try {
-                cameraManager.openCamera(CMAERA_ID, stateCallback, backgroundHandler);
+                cameraManager.openCamera(CAMERA_ID, stateCallback, backgroundHandler);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
                 toast("相机开启失败");
@@ -196,14 +191,17 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                         //如果高度小于屏幕高度, 调整高度
                         if(surface_height<screen_height){
                             surface_width = (int)(screen_height*(float)surface_width/(float)surface_height);
-                            surface_height = screen_height;
+                            surface_height = screen_height+2;//+2是去掉虚边
                         }
                         //Log.d(TAG, "renderPreview="+ret[0]+"x"+ret[1]+" surface_height="+surface_height);
                         if(preview_surface.getMeasuredHeight() != surface_height
                                 || preview_surface.getMeasuredWidth() != surface_width){
-                            preview_surface.getLayoutParams().height = surface_height;
-                            preview_surface.getLayoutParams().width = surface_width;
-                            preview_surface.setLayoutParams(preview_surface.getLayoutParams());
+                            FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) preview_surface.getLayoutParams();
+                            flp.height = surface_height;
+                            flp.width = surface_width;
+                            flp.leftMargin = -(surface_width-screen_width)/2;//设置-margin去掉左边虚边
+                            flp.topMargin = -2;//去掉虚边
+                            preview_surface.setLayoutParams(flp);
                         }
                     }
                 }
@@ -219,7 +217,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
         // 获取指定摄像头的特性
         CameraCharacteristics characteristics
-                = cameraManager.getCameraCharacteristics(CMAERA_ID);
+                = cameraManager.getCameraCharacteristics(CAMERA_ID);
         // 获取摄像头支持的配置属性
         StreamConfigurationMap map = characteristics.get(
                 CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -244,7 +242,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                 setPreviewSurface(preview_surface.getHolder().getSurface());
             }
         });
-        imageReader = ImageReader.newInstance(minSize.getWidth(), minSize.getHeight(), ImageFormat.YUV_420_888, /*maxImages*/2);
+        ImageReader imageReader = ImageReader.newInstance(minSize.getWidth(), minSize.getHeight(), ImageFormat.YUV_420_888, /*maxImages*/2);
         imageReader.setOnImageAvailableListener(this, backgroundHandler);
         final CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
         builder.addTarget(imageReader.getSurface());

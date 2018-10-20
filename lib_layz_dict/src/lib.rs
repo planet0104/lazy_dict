@@ -69,10 +69,11 @@ impl Application{
 
 thread_local!{
 	pub static APP: RefCell<Application> = RefCell::new(Application::new());
+	pub static BUFFER_RORATE: RefCell<Vec<u8>> = RefCell::new(vec![]);//图像旋转以后的buffer
 }
 
 //rgb888
-fn lock_native_window<F>(window: *mut ANativeWindow, render: F) -> bool where F : Fn((&ANativeWindow_Buffer, &mut [u8])){
+fn lock_native_window<F>(window: *mut ANativeWindow, mut render: F) -> bool where F : FnMut((&ANativeWindow_Buffer, &mut [u8])){
 	let mut buffer = ANativeWindow_Buffer{ width: 0, height: 0, stride: 0, format: 0, bits: 0 as *mut c_void, reserved: [0; 5] };
 	let mut rect = ARect { left: 0, top: 0, right: 0, bottom: 0};
 	let ret_code = unsafe{ ANativeWindow_lock(window, &mut buffer, &mut rect) };
@@ -223,33 +224,51 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, _class
 		utils::yuv_420_to_rgb_888(y_src, u_src, v_src, &mut app.preview_rgb_buffer, raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
 		trace!("转换rgb耗时:{}ms", utils::duration_to_milis(&now.elapsed())); now = Instant::now();
 
-		//第二步 旋转图像(copy form preview_rgb_buffer)
-		let mut rotate_raw_buffer = app.preview_rgb_buffer.clone();
-		let (width, height) = match sensor_orientation{
-			90 => utils::rotate90(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
-			180 => utils::rotate180(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
-			270 => utils::rotate270(&mut app.preview_rgb_buffer, &mut rotate_raw_buffer, raw_width as usize, raw_height as usize),
-			_ => (raw_width as usize, raw_height as usize)
-		};
+		lock_native_window(app.window.unwrap(), |(buffer, pixels)|{
+			//第二步 旋转图像(copy form preview_rgb_buffer)
+			BUFFER_RORATE.with(|rotate_buffer|{
+				let mut rotate_buffer = rotate_buffer.borrow_mut();
+				if rotate_buffer.len()!=app.preview_rgb_buffer.len(){
+					info!("创建rotate buffer {}x{}", raw_width, raw_height);
+					*rotate_buffer = vec![255; app.preview_rgb_buffer.len()];
+				}
+				let (rotate_raw_buffer, width, height) = match sensor_orientation{
+					90 => {
+						let (width, height) = utils::rotate90(&mut app.preview_rgb_buffer, &mut rotate_buffer, raw_width as usize, raw_height as usize);
+						(&(*rotate_buffer), width, height)
+					}
+					180 => {
+						let (width, height) = utils::rotate180(&mut app.preview_rgb_buffer, &mut rotate_buffer, raw_width as usize, raw_height as usize);
+						(&(*rotate_buffer), width, height)
+					}
+					270 => {
+						let (width, height) = utils::rotate270(&mut app.preview_rgb_buffer, &mut rotate_buffer, raw_width as usize, raw_height as usize);
+						(&(*rotate_buffer), width, height)
+					}
+					_ =>{
+						//不用旋转，使用原buffer
+						(&app.preview_rgb_buffer, raw_width as usize, raw_height as usize)
+					}
+				};
 
-		trace!("图片旋转成功，旋转角度:{} 图片大小{}x{} 耗时{}ms", sensor_orientation, width, height, utils::duration_to_milis(&now.elapsed()));
+				trace!("图片旋转成功，旋转角度:{} 图片大小{}x{} 耗时{}ms", sensor_orientation, width, height, utils::duration_to_milis(&now.elapsed()));
 
-		if lock_native_window(app.window.unwrap(), |(buffer, pixels)|{
-			let now = Instant::now();
-			//复制像素
-			let line_size = (width as i32*PIXEL_SIZE) as usize;
-			let mut line_id = 0;
-			for i in (0..rotate_raw_buffer.len()).step_by(line_size){//每一行
-				let src_line = rotate_raw_buffer.get(i..i+line_size).unwrap();
-				let target_line = pixels.get_mut(line_id..line_id+line_size).unwrap();
-				target_line.copy_from_slice(&src_line);
-				line_id += (buffer.stride*PIXEL_SIZE) as usize;
-			}
-			trace!("像素复制耗时{}ms", utils::duration_to_milis(&now.elapsed()));
-		}){
-			result[0] = width as i32;
-			result[1] = height as i32;
-		}
+				let now = Instant::now();
+				//复制像素
+				let line_size = (width as i32*PIXEL_SIZE) as usize;
+				let mut line_id = 0;
+				for i in (0..rotate_raw_buffer.len()).step_by(line_size){//每一行
+					let src_line = rotate_raw_buffer.get(i..i+line_size).unwrap();
+					let target_line = pixels.get_mut(line_id..line_id+line_size).unwrap();
+					target_line.copy_from_slice(&src_line);
+					line_id += (buffer.stride*PIXEL_SIZE) as usize;
+				}
+				trace!("像素复制耗时{}ms", utils::duration_to_milis(&now.elapsed()));
+
+				result[0] = width as i32;
+				result[1] = height as i32;
+			});
+		});
 	});
 
 	if let Ok(arr) = env.new_int_array(2){
