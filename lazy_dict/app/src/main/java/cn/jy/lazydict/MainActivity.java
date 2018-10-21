@@ -63,22 +63,6 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         setContentView(R.layout.activity_main);
         preview_surface = findViewById(R.id.preview_surface);
         fl_root = findViewById(R.id.fl_root);
-//        new Handler().postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                try {
-//                    BitmapFactory.Options options = new BitmapFactory.Options();
-//                    options.inPreferredConfig = Bitmap.Config.RGB_565;
-//                    Bitmap bitmap = BitmapFactory.decodeStream(getAssets().open("rust.png"), null, options);
-//                    Log.d(TAG,"new_buf="+bitmap.getByteCount());
-//                    sendRgb(bitmap, bitmap.getRowBytes());
-//                    Log.d(TAG,"sendRgb OK.");
-//                } catch (Throwable e) {
-//                    e.printStackTrace();
-//                    return;
-//                }
-//            }
-//        }, 2000);
     }
 
     private void requestCameraPermission() {
