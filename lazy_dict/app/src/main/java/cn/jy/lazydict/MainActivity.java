@@ -51,6 +51,10 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     native int[] renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
     native boolean setPreviewSurface(Surface surface);
 
+    public static Bitmap creatArgbBitmap(int width, int height){
+        return Bitmap.createBitmap( width, height, Bitmap.Config.ARGB_8888 );
+    }
+
     static {
         System.loadLibrary("SDL2");
         System.loadLibrary("lazy_dict");
@@ -369,6 +373,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
         tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");//参数后面有说明。
         tessBaseAPI.setImage(bitmap);
+        tessBaseAPI.set
         String text = tessBaseAPI.getUTF8Text();
         ResultIterator resultIterator = tessBaseAPI.getResultIterator();
         int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
