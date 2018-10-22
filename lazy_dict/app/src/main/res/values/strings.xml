@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">懒人字典</string>
+    <string name="status_init">正在启动</string>
+    <string name="status_camera">正在启动</string>
+    <string name="status_preview">正在启动</string>
+    <string name="status_camera_close">相机已关闭</string>
+    <string name="error_init">文件解压失败</string>
+    <string name="error_camera">相机开启失败</string>
+    <string name="error_preview">相机预览失败</string>
 </resources>

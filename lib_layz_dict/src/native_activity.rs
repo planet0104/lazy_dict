@@ -464,6 +464,16 @@ pub const AMOTION_EVENT_TOOL_TYPE_MOUSE: i32 = 3;
 pub const AMOTION_EVENT_TOOL_TYPE_STYLUS: i32 = 2;
 pub const AMOTION_EVENT_TOOL_TYPE_UNKNOWN: i32 = 0;
 
+pub struct InputQueue{
+	queue: *mut AInputQueue
+}
+impl InputQueue{
+	pub fn new(queue: *mut AInputQueue) -> InputQueue{
+		InputQueue{queue}
+	}
+}
+unsafe impl Send for InputQueue {}
+
 #[link(name = "android")]
 extern {
     pub fn AInputQueue_attachLooper(queue: *mut AInputQueue, looper: *mut ALooper, ident: c_int, callback: ALooper_callbackFunc, data: *mut c_void);
