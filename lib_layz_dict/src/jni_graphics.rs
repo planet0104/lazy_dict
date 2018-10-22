@@ -3,8 +3,9 @@
 #![allow(non_camel_case_types)]
 
 use std::os::raw::{c_int, c_void, c_uint};
-use jni::sys::{JNIEnv, jobject};
+use jni::sys::{JNIEnv, jclass, jobject};
 use jni;
+use jni::objects::{JStaticMethodID, JClass};
 //Bitmap作为
 
 const ANDROID_BITMAP_FORMAT_NONE:i32 = 0;
@@ -75,4 +76,18 @@ pub fn lock_bitmap<'a>(env: &jni::JNIEnv, bitmap: jobject) -> Result<(AndroidBit
     }
     let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.width*info.height*2) as usize)};
 	Ok((info, pixels))
+}
+
+pub fn create_java_bitmap(env: jni::JNIEnv) -> Result<jobject, jni::errors::Error>{
+	//1) Get the static method id of createBitmap(int width, int height, Bitmap.Config config):
+	let java_bitmap_class:JClass = env.find_class("android/graphics/Bitmap")?;
+    let method_id:JStaticMethodID = env.get_static_method_id(java_bitmap_class, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;")?;
+
+	//2) Creating enum for Bitmap.Config with given value:
+	const wchar_t config_name[] = L"ARGB_8888";
+	jstring j_config_name = env.NewString((const jchar*)config_name, wcslen(config_name));
+	jclass bcfg_class = env.FindClass("android/graphics/Bitmap$Config");
+	jobject java_bitmap_config = env.CallStaticObjectMethod(bcfg_class, env.GetStaticMethodID(bcfg_class, "valueOf", "(Ljava/lang/String;)Landroid/graphics/Bitmap$Config;"), j_config_name);
+
+	Ok(())
 }
