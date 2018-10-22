@@ -1,0 +1,30 @@
+[package]
+name = "lazy_dict"
+version = "0.1.0"
+authors = ["planet"]
+
+[dependencies]
+libc = "*"
+png = "*"
+log = "*"
+lazy_static = "*"
+jni = { version = "*", default-features = false }
+android_logger = "*"
+android_support = "*"
+zip = { version = "*", features = ["deflate-zlib"], default-features = false }
+bytes = "*"
+winit = "*"
+android_injected_glue = "*"
+android_glue = "*"
+gfx = "*"
+gfx_window_glutin = "0.26.0"
+gfx_device_gl = "*"
+glutin = "0.18.0"
+lyon = { version="*", features = ["extra"]  }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true
+#panic = 'abort'

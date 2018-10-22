@@ -1,9 +1,12 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
+import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -17,6 +20,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -24,9 +28,16 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.SurfaceView;
+import android.webkit.WebView;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.googlecode.tesseract.android.ResultIterator;
+import com.googlecode.tesseract.android.TessBaseAPI;
+
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,16 +67,28 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     private SurfaceView preview_surface;
 
     final String CAMERA_ID = CameraCharacteristics.LENS_FACING_FRONT+"";
+    private TextView tv_status;
+    private FrameLayout fl_status;
+    private WebView loader;
+
+    private long step = System.currentTimeMillis();
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_onCreate "+(System.currentTimeMillis()-step));
         setContentView(R.layout.activity_main);
         preview_surface = findViewById(R.id.preview_surface);
         fl_root = findViewById(R.id.fl_root);
+        tv_status = findViewById(R.id.tv_status);
+        loader = findViewById(R.id.loader);
+        fl_status = findViewById(R.id.fl_status);
+        loader.loadUrl("file:///android_asset/loading.html");
     }
 
     private void requestCameraPermission() {
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_requestCameraPermission "+(System.currentTimeMillis()-step));
+        tv_status.setText(R.string.status_camera);
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
         } else {
@@ -80,14 +103,15 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
          */
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
-            toast("相机已经开启");
+            Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_onOpened "+(System.currentTimeMillis()-step));
             MainActivity.this.cameraDevice = cameraDevice;
             //启动预览
             try {
+                tv_status.setText(R.string.status_preview);
                 requestPreview();
             } catch (CameraAccessException e) {
                 e.printStackTrace();
-                toast("相机预览失败!");
+                tv_status.setText(R.string.error_preview);
             }
         }
 
@@ -112,6 +136,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     };
 
     private void initCamera() {
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_initCamera "+(System.currentTimeMillis()-step));
         Log.d(TAG, "初始化相机");
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -126,6 +151,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_onRequestPermissionsResult "+(System.currentTimeMillis()-step));
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -175,7 +201,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                         //如果高度小于屏幕高度, 调整高度
                         if(surface_height<screen_height){
                             surface_width = (int)(screen_height*(float)surface_width/(float)surface_height);
-                            surface_height = screen_height+2;//+2是去掉虚边
+                            surface_height = screen_height;//是去掉虚边
                         }
                         //Log.d(TAG, "renderPreview="+ret[0]+"x"+ret[1]+" surface_height="+surface_height);
                         if(preview_surface.getMeasuredHeight() != surface_height
@@ -183,9 +209,12 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                             FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) preview_surface.getLayoutParams();
                             flp.height = surface_height;
                             flp.width = surface_width;
-                            flp.leftMargin = -(surface_width-screen_width)/2;//设置-margin去掉左边虚边
-                            flp.topMargin = -2;//去掉虚边
                             preview_surface.setLayoutParams(flp);
+                        }
+                        if(fl_status.getAlpha()==1.0){
+                            ObjectAnimator fadeOut = ObjectAnimator.ofFloat(fl_status, "alpha",  1f, .0f);
+                            fadeOut.setDuration(500);
+                            fadeOut.start();
                         }
                     }
                 }
@@ -198,7 +227,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     }
 
     private void requestPreview() throws CameraAccessException {
-
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_requestPreview "+(System.currentTimeMillis()-step));
         // 获取指定摄像头的特性
         CameraCharacteristics characteristics
                 = cameraManager.getCameraCharacteristics(CAMERA_ID);
@@ -212,12 +241,10 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
             if (s.getWidth()<=720&&s.getHeight()<=720){
                 minSize = s;
             }
-            Log.d(TAG, "预览大小Size="+s.toString());
+            //Log.d(TAG, "预览大小Size="+s.toString());
         }
-        //设置竖向显示
         sensor_orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-        Log.d(TAG, "ORIENTATION========="+sensor_orientation);
-        Log.d(TAG, "minSize========="+minSize.toString());
+        Log.d(TAG, "预览大小:"+minSize.toString()+" ORIENTATION="+sensor_orientation);
         preview_surface.getHolder().setFixedSize(minSize.getHeight(), minSize.getWidth());
         preview_surface.getHolder().setFormat(PixelFormat.RGB_888);
         preview_surface.post(new Runnable() {
@@ -233,9 +260,9 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         cameraDevice.createCaptureSession(Collections.singletonList(imageReader.getSurface()), new CameraCaptureSession.StateCallback() {
             @Override
             public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                toast("预览配置完成");
+                Log.d(TAG,"预览配置完成");
                 if(cameraDevice == null){
-                    toast("相机已关闭");
+                    tv_status.setText(R.string.status_camera_close);
                     return;
                 }
                 MainActivity.this.cameraCaptureSession = cameraCaptureSession;
@@ -243,16 +270,16 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                 CaptureRequest request = builder.build();
                 try {
                     cameraCaptureSession.setRepeatingRequest(request, null, backgroundHandler);
-                    toast("预览请求成功.");
                 } catch (CameraAccessException e) {
                     e.printStackTrace();
-                    toast("预览请求失败!");
+                    tv_status.setText(R.string.error_preview);
                 }
             }
 
             @Override
             public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                toast("预览会话创建失败");
+                Log.d(TAG, "预览会话创建失败");
+                tv_status.setText(R.string.error_preview);
             }
         }, backgroundHandler);
     }
@@ -270,9 +297,88 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
     @Override
     protected void onResume() {
+        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_onResume "+(System.currentTimeMillis()-step));
         super.onResume();
+        fl_status.setAlpha(1.0f);
+        //初始化tess-two文件
+        //init_tess_two();
         //开始预览
-        requestCameraPermission();
+        loader.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                init_tess_two();
+            }
+        }, 100);
+    }
+
+    Handler progressHandler = new Handler(new Handler.Callback() {
+        @Override
+        public boolean handleMessage(Message msg) {
+            tv_status.setText("正在初始化 "+msg.what+"%");
+            return false;
+        }
+    });
+
+    private void init_tess_two(){
+        //将tessdata文件夹解压到files文件夹
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                boolean success = false;
+                try {
+                    File tessDataDir = new File(getFilesDir(), "tessdata");
+                    if(!tessDataDir.exists()){
+                        if(FileUtils.unpackZip(getAssets().open("tessdata.zip"), getFilesDir(), progressHandler)){
+                            Log.d(TAG, "tessdata解压成功");
+                            success = true;
+                        }else{
+                            Log.e(TAG, "tessdata解压失败");
+                            tv_status.setText(R.string.error_init);
+                        }
+                    }else{
+                        success = true;
+                        Log.e(TAG, "tessdata已经存在");
+                    }
+                } catch (IOException e) {
+                    Log.e(TAG, "tessdata文件夹读取失败!");
+                    e.printStackTrace();
+                }
+                if(success){
+                    //初始化 TessBaseAPI
+                    TessBaseAPI tessBaseAPI = new TessBaseAPI();
+                    Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
+                    final boolean tessInit = tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(tessInit){
+                                //启动相机
+                                requestCameraPermission();
+                            }else{
+                                tv_status.setText("Tess初始化失败!");
+                            }
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
+    public String getText(Bitmap bitmap){
+        TessBaseAPI tessBaseAPI = new TessBaseAPI();
+        Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
+        tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");//参数后面有说明。
+        tessBaseAPI.setImage(bitmap);
+        String text = tessBaseAPI.getUTF8Text();
+        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
+        int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
+        do{
+            Log.d(TAG, resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
+        }while(resultIterator.next(level));
+
+        resultIterator.delete();
+        Log.d(TAG, "识别结果:"+text);
+        return text;
     }
 
     @Override
