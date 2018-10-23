@@ -3,9 +3,9 @@
 #![allow(non_camel_case_types)]
 
 use std::os::raw::{c_int, c_void, c_uint};
-use jni::sys::{JNIEnv, jclass, jobject};
+use jni::sys::{JNIEnv, jint, jobject};
 use jni;
-use jni::objects::{JStaticMethodID, JClass};
+use jni::objects::{JObject, JValue};
 //Bitmap作为
 
 const ANDROID_BITMAP_FORMAT_NONE:i32 = 0;
@@ -26,6 +26,7 @@ pub fn get_format_name(format: i32) -> String{
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct AndroidBitmapInfo {
 	pub width: c_uint,
 	pub height: c_uint,
@@ -54,7 +55,8 @@ pub fn unlock_bitmap(env: &jni::JNIEnv, bitmap: jobject){
 	trace!("AndroidBitmap_unlockPixels:{}", ret);
 }
 
-pub fn lock_bitmap<'a>(env: &jni::JNIEnv, bitmap: jobject) -> Result<(AndroidBitmapInfo, &'a mut [u8]), String>{
+//锁定bitmap
+pub fn lock_bitmap_argb888<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) -> Result<(), String> where F : FnMut(&AndroidBitmapInfo, &mut [u8]){
 	let mut info = AndroidBitmapInfo{
 		width: 0,
 		height: 0,
@@ -62,32 +64,30 @@ pub fn lock_bitmap<'a>(env: &jni::JNIEnv, bitmap: jobject) -> Result<(AndroidBit
 		format: 0,
 		flags: 0,
 	};
-	
-	let ret = unsafe{AndroidBitmap_getInfo(env.get_native_interface(), bitmap, &mut info)};
+	let jenv = env.get_native_interface();
+	let jbitmap = bitmap.into_inner();
+	let ret = unsafe{AndroidBitmap_getInfo(jenv, jbitmap, &mut info)};
 	if ret<0{
 		return Result::Err(format!("AndroidBitmap_getInfo调用失败! {}", ret));
 	}
-  	trace!("图片 {}x{} format={}", info.width, info.height, info.format);
 
 	let mut pixels = 0 as *mut c_void;
-    let ret = unsafe{ AndroidBitmap_lockPixels(env.get_native_interface(), bitmap, &mut pixels) };
+    let ret = unsafe{ AndroidBitmap_lockPixels(jenv, jbitmap, &mut pixels) };
     if ret<0{
       return Result::Err(format!("AndroidBitmap_lockPixels! {}", ret));
     }
-    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.width*info.height*2) as usize)};
-	Ok((info, pixels))
+    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height*4) as usize)};
+
+	render(&info, pixels);
+	if unsafe{ AndroidBitmap_unlockPixels(jenv, jbitmap) } != 0{
+		error!("ANativeWindow_unlockAndPost 调用失败!");
+	}
+	Ok(())
 }
 
-pub fn create_java_bitmap(env: jni::JNIEnv) -> Result<jobject, jni::errors::Error>{
-	//1) Get the static method id of createBitmap(int width, int height, Bitmap.Config config):
-	let java_bitmap_class:JClass = env.find_class("android/graphics/Bitmap")?;
-    let method_id:JStaticMethodID = env.get_static_method_id(java_bitmap_class, "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;")?;
-
-	//2) Creating enum for Bitmap.Config with given value:
-	const wchar_t config_name[] = L"ARGB_8888";
-	jstring j_config_name = env.NewString((const jchar*)config_name, wcslen(config_name));
-	jclass bcfg_class = env.FindClass("android/graphics/Bitmap$Config");
-	jobject java_bitmap_config = env.CallStaticObjectMethod(bcfg_class, env.GetStaticMethodID(bcfg_class, "valueOf", "(Ljava/lang/String;)Landroid/graphics/Bitmap$Config;"), j_config_name);
-
-	Ok(())
+//创建bitmap对象
+pub fn create_java_bitmap_argb888<'a>(env: &'a jni::JNIEnv, width: usize, height:usize) -> Result<JObject<'a>, jni::errors::Error>{
+	let config = env.call_static_method("android/graphics/Bitmap$Config", "nativeToConfig", "(I)Landroid/graphics/Bitmap$Config;", &[JValue::from(5)])?;
+	let bitmap = env.call_static_method("android/graphics/Bitmap", "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", &[JValue::from(width as jint), JValue::from(height as jint), config])?;
+	Ok(bitmap.l()?)
 }
