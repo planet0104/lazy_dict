@@ -1,25 +1,5 @@
 use rayon;
 
-const PIXEL_SIZE:usize = 3;
-
-pub struct Image{
-    buffer: Vec<u8>,
-    width: usize,
-    height: usize,
-}
-
-impl Image{
-    pub fn new(buffer: Vec<u8>, width: usize, height: usize) -> Image{
-        Image{buffer, width, height}
-    }
-    pub fn black(width: usize, height: usize) -> Image{
-        Image{buffer: vec![0], width, height}
-    }
-    pub fn white(width: usize, height: usize) -> Image{
-        Image{buffer: vec![255], width, height}
-    }
-}
-
 // This value is 2 ^ 18 - 1, and is used to clamp the RGB values before their
 // ranges
 // are normalized to eight bits.
@@ -53,7 +33,7 @@ fn yuv_to_rgb(mut y:i32, mut u:i32, mut v:i32) -> (u8,u8,u8){
 
 pub fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&mut[u8], width: i32, height:i32, y_row_stride: i32, uv_row_stride:i32, uv_pixel_stride:i32){
 
-	let multi_thread = true;
+	let multi_thread = false;
 
 	if multi_thread{ //多线程 平均5ms (图片640x480)
 		//每行一个线程执行
@@ -190,11 +170,11 @@ impl Rect{
 }
 
 //绘制正方形
-pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3], mut line_width:usize) -> Result<(), &'a str>{
+pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], line_width:usize, pixel_size: usize) -> Result<(), &'a str>{
     let w = line_width/2;
     //上边框
     let mut fill = Rect::new(rect.left-w, rect.top-w, rect.width+w*2, line_width);
-    match fill_rect(buffer, width, &fill, color){
+    match fill_rect(buffer, width, &fill, color, pixel_size){
         Ok(()) => (),
         Err(err) => return Err(err)
     }
@@ -203,7 +183,7 @@ pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]
     fill.top = rect.top+rect.height-w;
     fill.width =  rect.width+w*2;
     fill.height = line_width;
-    match fill_rect(buffer, width, &fill, color){
+    match fill_rect(buffer, width, &fill, color, pixel_size){
         Ok(()) => (),
         Err(err) => return Err(err)
     }
@@ -212,7 +192,7 @@ pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]
     fill.top = rect.top+w;
     fill.width =  line_width;
     fill.height = rect.height-w*2;
-    match fill_rect(buffer, width, &fill, color){
+    match fill_rect(buffer, width, &fill, color, pixel_size){
         Ok(()) => (),
         Err(err) => return Err(err)
     }
@@ -221,7 +201,7 @@ pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]
     fill.top = rect.top+w;
     fill.width =  line_width;
     fill.height = rect.height-w*2;
-    match fill_rect(buffer, width, &fill, color){
+    match fill_rect(buffer, width, &fill, color, pixel_size){
         Ok(()) => (),
         Err(err) => return Err(err)
     }
@@ -229,8 +209,8 @@ pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]
 }
 
 //填充正方形
-pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]) -> Result<(), &'a str>{
-    let stride = width*3;
+pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], pixel_size: usize) -> Result<(), &'a str>{
+    let stride = width*pixel_size;
     //先取匹配裁剪区的所有行
     let start = stride*(rect.top-1);
     let end = start + stride*rect.height;
@@ -238,13 +218,13 @@ pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]) 
         Some(lines) => {
             for row in lines.chunks_mut(stride){//每一行
                 //复制每一行的裁剪区域
-                match row.get_mut((rect.left-1)*3..(rect.left-1)*3+rect.width*3){
+                match row.get_mut((rect.left-1)*pixel_size..(rect.left-1)*pixel_size+rect.width*pixel_size){
                     Some(chunk) =>{
-                        if chunk.len() == rect.width*3{
-                            for pixel in chunk.chunks_mut(3){
-                                pixel[0] = color[0];
-                                pixel[1] = color[1];
-                                pixel[2] = color[2];
+                        if chunk.len() == rect.width*pixel_size{
+                            for pixel in chunk.chunks_mut(pixel_size){
+                                for k in 0..pixel_size{
+                                    pixel[k] = color[k]
+                                }
                             }
                         }else{
                             return Err("fill_rect失败 01!");
@@ -260,7 +240,7 @@ pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:[u8;3]) 
 }
 
 //获取rgb图片区域
-pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect) -> Result<Vec<u8>, &'a str>{
+pub fn get_argb_rect_rgb<'a>(buffer: &[u8], width: usize, rect:&Rect) -> Result<Vec<u8>, &'a str>{
     let mut result = vec![];
     let stride = width*3;
     //先取匹配裁剪区的所有行
@@ -273,20 +253,59 @@ pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect) -> Result<Vec<u8>, 
                 match row.get((rect.left-1)*3..(rect.left-1)*3+rect.width*3){
                     Some(chunk) =>{
                         if chunk.len() == rect.width*3{
-                            result.extend_from_slice(chunk);
+                            //result.extend_from_slice(chunk);
+                            for pixel in chunk.chunks(3){
+                                result.push(pixel[0]);
+                                result.push(pixel[1]);
+                                result.push(pixel[2]);
+                                result.push(255);
+                            }
                         }else{
-                            return Err("截取失败 01!");
+                            return Err("get_argb_rect_rgb失败 01!");
                         }
                     }
-                    None => return Err("截取失败 02!")
+                    None => return Err("get_argb_rect_rgb失败 02!")
                 }
             }
         },
-        None => return Err("截取失败 03!")
+        None => return Err("get_argb_rect_rgb失败 03!")
     }
 
-    if result.len() != rect.width*rect.height*3{
-        return Err("截取失败 04!")
+    if result.len() != rect.width*rect.height*4{
+        return Err("get_argb_rect_rgb失败 04!")
+    }else{
+        Ok(result)
+    }
+}
+
+//获取rgb图片区域
+pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect, pixel_size: usize) -> Result<Vec<u8>, &'a str>{
+    let mut result = vec![];
+    let stride = width*pixel_size;
+    //先取匹配裁剪区的所有行
+    let start = stride*(rect.top-1);
+    let end = start + stride*rect.height;
+    match buffer.get(start..end){
+        Some(lines) => {
+            for row in lines.chunks(stride){//每一行
+                //复制每一行的裁剪区域
+                match row.get((rect.left-1)*pixel_size..(rect.left-1)*pixel_size+rect.width*pixel_size){
+                    Some(chunk) =>{
+                        if chunk.len() == rect.width*pixel_size{
+                            result.extend_from_slice(chunk);
+                        }else{
+                            return Err("get_rect失败 01!");
+                        }
+                    }
+                    None => return Err("get_rect失败 02!")
+                }
+            }
+        },
+        None => return Err("get_rect失败 03!")
+    }
+
+    if result.len() != rect.width*rect.height*pixel_size{
+        return Err("get_rect失败 04!")
     }else{
         Ok(result)
     }

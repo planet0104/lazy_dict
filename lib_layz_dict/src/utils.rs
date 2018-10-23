@@ -153,7 +153,7 @@ use native_window::{ARect, ANativeWindow_unlockAndPost, ANativeWindow_lock, ANat
 use std::os::raw::{c_void};
 
 //获取windows的缓冲区
-pub fn lock_native_window_rgb_888<F>(window: *mut ANativeWindow, mut render: F) -> bool where F : FnMut((&ANativeWindow_Buffer, &mut [u8])){
+pub fn lock_native_window_rgb_888<F>(window: *mut ANativeWindow, mut render: F) -> bool where F : FnMut(&ANativeWindow_Buffer, &mut [u8]){
 	let mut buffer = ANativeWindow_Buffer{ width: 0, height: 0, stride: 0, format: 0, bits: 0 as *mut c_void, reserved: [0; 5] };
 	let mut rect = ARect { left: 0, top: 0, right: 0, bottom: 0};
 	let ret_code = unsafe{ ANativeWindow_lock(window, &mut buffer, &mut rect) };
@@ -163,7 +163,7 @@ pub fn lock_native_window_rgb_888<F>(window: *mut ANativeWindow, mut render: F) 
 	}
 	let pixels = unsafe{ ::std::slice::from_raw_parts_mut(buffer.bits as *mut u8, (buffer.stride*buffer.height*3) as usize) };
 	//trace!("lock_native_window {}x{} format={} stride={} pixel.len()={}", buffer.width, buffer.height, buffer.format, buffer.stride, pixels.len());
-	render((&buffer, pixels));
+	render(&buffer, pixels);
 	if unsafe{ ANativeWindow_unlockAndPost(window) } != 0{
 		error!("ANativeWindow_unlockAndPost 调用失败!");
 	}

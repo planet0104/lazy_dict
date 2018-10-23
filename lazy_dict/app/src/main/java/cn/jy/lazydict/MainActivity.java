@@ -6,7 +6,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -30,10 +29,10 @@ import android.view.Surface;
 import android.view.SurfaceView;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.googlecode.tesseract.android.ResultIterator;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 import java.io.File;
@@ -42,6 +41,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+
+import static com.googlecode.tesseract.android.TessBaseAPI.PageSegMode.PSM_SINGLE_WORD;
 //新华字典数据库 https://github.com/pwxcoo/chinese-xinhua
 //摄像头 https://www.cnblogs.com/haibindev/p/8408598.html
 
@@ -50,12 +51,13 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
     native int[] renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
     native boolean setPreviewSurface(Surface surface);
+    native void onTextRecognized(long time, String text);
 
-    public static Bitmap creatArgbBitmap(int width, int height){
-        return Bitmap.createBitmap( width, height, Bitmap.Config.ARGB_8888 );
-    }
+    static TessBaseAPI tessBaseAPI;
+    boolean recognizing = false;
 
     static {
+        //去广告！！！！！！！ 去广告 到淘宝店铺购买密钥！！
         System.loadLibrary("SDL2");
         System.loadLibrary("lazy_dict");
     }
@@ -74,6 +76,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     private TextView tv_status;
     private FrameLayout fl_status;
     private WebView loader;
+    private ImageView iv_bitmap;
 
     private long step = System.currentTimeMillis();
 
@@ -87,6 +90,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         tv_status = findViewById(R.id.tv_status);
         loader = findViewById(R.id.loader);
         fl_status = findViewById(R.id.fl_status);
+        iv_bitmap = findViewById(R.id.iv_bitmap);
         loader.loadUrl("file:///android_asset/loading.html");
     }
 
@@ -167,15 +171,15 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         }
     }
 
-    long lastTime = System.currentTimeMillis();
+    //long lastTime = System.currentTimeMillis();
 
     @Override
     public void onImageAvailable(ImageReader imageReader) {
 
-        long duration = System.currentTimeMillis()-lastTime;
-        lastTime = System.currentTimeMillis();
+        //long duration = System.currentTimeMillis()-lastTime;
+        //lastTime = System.currentTimeMillis();
         //经过测试, 这里帧率最高为30左右, 如果手机性能差，过高的分辨率帧率可能达不到30帧
-        Log.d(TAG, "帧时间="+duration+"ms");
+        //Log.d(TAG, "帧时间="+duration+"ms");
 
         Image image = imageReader.acquireNextImage();
         if (image != null) {
@@ -349,13 +353,19 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                 }
                 if(success){
                     //初始化 TessBaseAPI
-                    TessBaseAPI tessBaseAPI = new TessBaseAPI();
-                    Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
-                    final boolean tessInit = tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");
+                    boolean tessInit;
+                    if(tessBaseAPI == null){
+                        tessBaseAPI = new TessBaseAPI();
+                        Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
+                        tessInit = tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");
+                    }else{
+                        tessInit = true;
+                    }
+                    final boolean tessInitFinal = tessInit;
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if(tessInit){
+                            if(tessInitFinal){
                                 //启动相机
                                 requestCameraPermission();
                             }else{
@@ -368,22 +378,63 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         }).start();
     }
 
-    public String getText(Bitmap bitmap){
-        TessBaseAPI tessBaseAPI = new TessBaseAPI();
-        Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
-        tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");//参数后面有说明。
-        tessBaseAPI.setImage(bitmap);
-        tessBaseAPI.set
-        String text = tessBaseAPI.getUTF8Text();
-        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
-        int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
-        do{
-            Log.d(TAG, resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
-        }while(resultIterator.next(level));
-
-        resultIterator.delete();
-        Log.d(TAG, "识别结果:"+text);
-        return text;
+    /**
+     * @param imageData byte representation of the image
+     * @param width width image width
+     * @param height height image height
+     * @param bpp 每个像素字节
+     * @param bpl 每行字节
+     * @return
+     */
+    public void getText(final byte[][] imageData, final int[] width, final int height, final int bpp, final int bpl){
+        if(recognizing) return;
+        recognizing = true;
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                //Log.d(TAG, "识别->getText>>>>>>>>>>>> byte.len()="+imageData.length+" "+width+"x"+height+" bpp="+bpp+" bpl="+bpl);
+                //Log.d(TAG, "识别->版本:"+tessBaseAPI.getVersion());
+//                final Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+//                try{
+//                    ByteBuffer buffer = ByteBuffer.wrap(imageData);
+//                    bmp.copyPixelsFromBuffer(buffer);
+//                    runOnUiThread(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            iv_bitmap.setImageBitmap(bmp);
+//                        }
+//                    });
+//                }catch (Throwable t){
+//                    t.printStackTrace();
+//                }
+                final long time = System.currentTimeMillis();
+                Log.d(TAG, "识别->开始调用>");
+                //tess配置说明 https://www.jianshu.com/p/c4a11241b557
+                //PSM_SINGLE_WORD 单独的字
+                tessBaseAPI.setPageSegMode(PSM_SINGLE_WORD);
+                for (int i=0; i<imageData.length; i++){
+                    tessBaseAPI.setImage(imageData[i], width[i], height, bpp, bpl);
+                    final String text = tessBaseAPI.getUTF8Text();
+                    //        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
+                    //        int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
+                    //        do{
+                    //            Log.d(TAG, resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
+                    //        }while(resultIterator.next(level));
+                    //        resultIterator.delete();
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            onTextRecognized(time, text);
+                            Log.d(TAG, "识别结果:"+time+">>>"+text);
+                            recognizing = false;
+                        }
+                    });
+                }
+                Log.d(TAG, "识别耗时:"+(System.currentTimeMillis()-time)+"ms");
+            }
+        });
+        //t.setPriority(Thread.MAX_PRIORITY);
+        t.start();
     }
 
     @Override
