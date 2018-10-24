@@ -41,6 +41,7 @@ pub fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&m
 		// 	for (j, output_slice) in output.chunks_mut(width as usize*3).enumerate() {
 		// 		s.spawn(move |_| {
 		// 			let y = j as i32;
+        //https://crates.io/crates/image2
 		// 			let iy = y_row_stride*y;
 		// 			let uv_row_start = uv_row_stride*(y>>1);
 		// 			let iu = uv_row_start;
@@ -170,7 +171,7 @@ impl Rect{
 }
 
 //绘制正方形
-pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], line_width:usize, pixel_size: usize) -> Result<(), &'a str>{
+pub fn stroke_rect(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], line_width:usize, pixel_size: usize) -> Result<(), String>{
     let w = line_width/2;
     //上边框
     let mut fill = Rect::new(rect.left-w, rect.top-w, rect.width+w*2, line_width);
@@ -209,7 +210,7 @@ pub fn stroke_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8],
 }
 
 //填充正方形
-pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], pixel_size: usize) -> Result<(), &'a str>{
+pub fn fill_rect(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], pixel_size: usize) -> Result<(), String>{
     let stride = width*pixel_size;
     //先取匹配裁剪区的所有行
     let start = stride*(rect.top-1);
@@ -227,14 +228,14 @@ pub fn fill_rect<'a>(buffer: &mut [u8], width: usize, rect:&Rect, color:&[u8], p
                                 }
                             }
                         }else{
-                            return Err("fill_rect失败 01!");
+                            return Err(String::from("fill_rect失败 01!"));
                         }
                     }
-                    None => return Err("fill_rect失败 02!")
+                    None => return Err(String::from("fill_rect失败 02!"))
                 }
             }
         },
-        None => return Err("fill_rect失败 03!")
+        None => return Err(String::from("fill_rect失败 03!"))
     }
     Ok(())
 }

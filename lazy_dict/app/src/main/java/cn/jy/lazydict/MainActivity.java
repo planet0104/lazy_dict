@@ -1,11 +1,12 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.hardware.camera2.CameraAccessException;
@@ -52,9 +53,12 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     native int[] renderPreview(ByteBuffer y, ByteBuffer u, ByteBuffer v, int width, int height, int y_row_stride, int uv_row_stride, int uv_pixel_stride, int sensor_orientation);
     native boolean setPreviewSurface(Surface surface);
     native void onTextRecognized(long time, String text);
+    native void startRecognize();//动画结束才开始识别
 
     static TessBaseAPI tessBaseAPI;
     boolean recognizing = false;
+    boolean initFadeOut = false;
+    boolean stopping = false;
 
     static {
         //去广告！！！！！！！ 去广告 到淘宝店铺购买密钥！！
@@ -175,7 +179,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 
     @Override
     public void onImageAvailable(ImageReader imageReader) {
-
+        if(stopping) return;
         //long duration = System.currentTimeMillis()-lastTime;
         //lastTime = System.currentTimeMillis();
         //经过测试, 这里帧率最高为30左右, 如果手机性能差，过高的分辨率帧率可能达不到30帧
@@ -219,9 +223,18 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                             flp.width = surface_width;
                             preview_surface.setLayoutParams(flp);
                         }
-                        if(fl_status.getAlpha()==1.0){
+                        if(!initFadeOut){
+                            initFadeOut = true;
                             ObjectAnimator fadeOut = ObjectAnimator.ofFloat(fl_status, "alpha",  1f, .0f);
                             fadeOut.setDuration(500);
+                            fadeOut.addListener(new AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(Animator animation) {
+                                    super.onAnimationEnd(animation);
+                                    //动画结束开始识别
+                                    startRecognize();
+                                }
+                            });
                             fadeOut.start();
                         }
                     }
@@ -307,6 +320,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     protected void onResume() {
         Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_onResume "+(System.currentTimeMillis()-step));
         super.onResume();
+        stopping = false;
         fl_status.setAlpha(1.0f);
         //初始化tess-two文件
         //init_tess_two();
@@ -383,16 +397,15 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
      * @param width width image width
      * @param height height image height
      * @param bpp 每个像素字节
-     * @param bpl 每行字节
      * @return
      */
-    public void getText(final byte[][] imageData, final int[] width, final int height, final int bpp, final int bpl){
+    public void getText(final byte[][] imageData, final int[] width, final int[] height, final int bpp){
         if(recognizing) return;
         recognizing = true;
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
-                //Log.d(TAG, "识别->getText>>>>>>>>>>>> byte.len()="+imageData.length+" "+width+"x"+height+" bpp="+bpp+" bpl="+bpl);
+                Log.d(TAG, "识别->getText>>>>>>>>>>>> byte.len()="+imageData.length+" "+width+"x"+height+" bpp="+bpp);
                 //Log.d(TAG, "识别->版本:"+tessBaseAPI.getVersion());
 //                final Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
 //                try{
@@ -408,12 +421,13 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
 //                    t.printStackTrace();
 //                }
                 final long time = System.currentTimeMillis();
-                Log.d(TAG, "识别->开始调用>");
                 //tess配置说明 https://www.jianshu.com/p/c4a11241b557
                 //PSM_SINGLE_WORD 单独的字
                 tessBaseAPI.setPageSegMode(PSM_SINGLE_WORD);
+                String result = "";
                 for (int i=0; i<imageData.length; i++){
-                    tessBaseAPI.setImage(imageData[i], width[i], height, bpp, bpl);
+                    int bpl = bpp*width[i];//bpl 每行字节=像素字节x行宽
+                    tessBaseAPI.setImage(imageData[i], width[i], height[i], bpp, bpl);
                     final String text = tessBaseAPI.getUTF8Text();
                     //        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
                     //        int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
@@ -421,16 +435,17 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                     //            Log.d(TAG, resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
                     //        }while(resultIterator.next(level));
                     //        resultIterator.delete();
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            onTextRecognized(time, text);
-                            Log.d(TAG, "识别结果:"+time+">>>"+text);
-                            recognizing = false;
-                        }
-                    });
+                    result += text;
                 }
-                Log.d(TAG, "识别耗时:"+(System.currentTimeMillis()-time)+"ms");
+                final String finalResult = result;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        onTextRecognized(time, finalResult);
+                    }
+                });
+                recognizing = false;
+                Log.d(TAG, "识别结果="+finalResult+" 识别耗时:"+(System.currentTimeMillis()-time)+"ms");
             }
         });
         //t.setPriority(Thread.MAX_PRIORITY);
@@ -440,10 +455,12 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     @Override
     protected void onPause() {
         super.onPause();
+        stopping = true;
         //停止预览
         if(cameraCaptureSession != null) cameraCaptureSession.close();
         if(cameraDevice!=null) cameraDevice.close();
         cameraManager = null;
+        initFadeOut = false;
     }
 
     private void toast(String s){
