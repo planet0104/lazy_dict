@@ -90,7 +90,7 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_onTextRecognized(env: JNIEnv, act
 
 //预览图片
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, activity_class: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, raw_width:jint, raw_height:jint, y_row_stride: jint, uv_row_stride:jint, uv_pixel_stride:jint, sensor_orientation: jint) -> jni::sys::jintArray{
+pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview<'a>(env: JNIEnv, activity_class: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, raw_width:jint, raw_height:jint, y_row_stride: jint, uv_row_stride:jint, uv_pixel_stride:jint, sensor_orientation: jint) -> jni::sys::jintArray{
 	//trace!("send>>Java_cn_jy_lazydict_MainActivity_send width={}, height={} y_row_stride={} uv_row_stride={} uv_pixel_stride={}", raw_width, raw_height, y_row_stride, uv_row_stride, uv_pixel_stride);
 	let mut result = [-1, -1];
 	APP.with(|app|{
@@ -250,7 +250,7 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview(env: JNIEnv, activi
 							//debug!("开始识别 col_blocks={:?} row_blocks={:?}", col_blocks, row_blocks);
 							
 							let empty_array = env.new_byte_array(0).unwrap();
-							let bitmap_bytes_array = env.new_object_array((col_blocks.len()*row_blocks.len()) as i32, "java.lang.Array", empty_array);
+							let bitmap_bytes_array = env.new_object_array((col_blocks.len()*row_blocks.len()) as i32, JValue::Object, JObject::null());
 
 							for col in 0..col_blocks.len(){//每个纵向块
 								for row in 0..row_blocks.len(){//每个横向块
