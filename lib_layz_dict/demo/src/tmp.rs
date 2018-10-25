@@ -65,3 +65,28 @@
     newimg.save("new.png").unwrap();
 
     return;
+
+
+
+    //--------------------------------- 灰度直方图
+    // let height = 100;
+    // let width = 256;
+    // let mut gray_bar = vec![255; width*height*3];
+    // let max = *gray_count.iter().max().unwrap();
+    // for (y, row) in gray_bar.chunks_mut(width*3).enumerate(){
+    //     for (x, pixel) in row.chunks_mut(3).enumerate(){
+    //         let h = ((gray_count[x] as f32/max as f32)*height as f32) as usize;
+    //         if h>=(height-y){
+    //             pixel[0] = 0;
+    //             pixel[1] = 0;
+    //             pixel[2] = 0;
+    //         }
+    //     }
+    // }
+
+    //println!("{:?} max={}", gray_count, max);
+
+    //let newimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(new_width as u32, new_height as u32, dst).unwrap();
+    // let newimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, gray_bar).unwrap();
+    // println!("width={}", newimg.width());
+    // newimg.save("new.png").unwrap();
