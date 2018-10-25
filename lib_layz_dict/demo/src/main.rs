@@ -143,28 +143,31 @@ fn main(){
     for row in pixels.chunks(width*bpp){
         for (x, pixel) in row.chunks(bpp).enumerate(){
             if pixel[0] == 0{
-                horizontal_shoots[x] += 1;
+                horizontal_shoots[x] += 2;
             }
         }
     }
-    println!("horizontal_shoots={:?}", horizontal_shoots);
+    //println!("horizontal_shoots={:?}", horizontal_shoots);
+    //从上往下，纵向投影扫描
+    let mut vertical_shoots = vec![0; height];
+    for x in 0..width{
+        for y in 0..height{
+            let i = y*width+x;
+            if pixels[i*3] == 0{
+                vertical_shoots[y] += 2;
+            }
+        }
+    }
 
     //绘制投影图
     {
-        let height = 50;
-        let mut shoot = ImageBuffer::new(width as u32, height);
-        let mut last_point = None;
-        for y in 0..height{
-            for x in 0..width{
-                if horizontal_shoots[x] == (height-y){
-                    if last_point.is_none(){
-                        last_point = Some((x as f32, y as f32));
-                    }else{
-                        imageproc::drawing::draw_line_segment_mut(&mut shoot, last_point.unwrap(), (x as f32, y as f32), Rgb([255u8, 255u8, 0u8]));
-                        last_point = Some((x as f32, y as f32));
-                    }
-                }
-            }
+        
+        let mut shoot = ImageBuffer::new(width as u32, 300);
+        for x in 1..width{
+            imageproc::drawing::draw_line_segment_mut(&mut shoot, (x as f32-1.0, horizontal_shoots[x-1] as f32), (x as f32, horizontal_shoots[x] as f32), Rgb([255u8, 255u8, 0u8]));
+        }
+        for y in 1..height{
+            imageproc::drawing::draw_line_segment_mut(&mut shoot, (vertical_shoots[y-1] as f32, y as f32-1.0), (vertical_shoots[y] as f32, y as f32), Rgb([255u8, 255u8, 0u8]));
         }
         
         shoot.save("shoot.png").unwrap();
