@@ -1,11 +1,8 @@
 extern crate image;
 use std::time::{Duration, Instant};
 mod imgtools;
-use image::{GenericImage, Rgb, ImageBuffer};
+use image::{Rgb, ImageBuffer};
 extern crate imageproc;
-extern crate resize;
-use resize::Pixel::RGB24;
-use resize::Type::*;
 
 #[derive(Debug)]
 struct SplitInfo{
@@ -146,6 +143,11 @@ fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:
 
         // println!("{:?}", horizontal_array);
         // println!("{:?}", vertical_array);
+
+        这里拆分之前，要检测是否过度拆分， “杰、们、会”等字不应该再次拆分
+        至于标点逗号，能否根据平均宽高来过滤？
+        至于半个字，也要过滤掉
+
         for y in 1..horizontal_array.len(){
             for x in 1..vertical_array.len(){
                 let (split_left, split_top, split_right, split_bottom) = (vertical_array[x-1], horizontal_array[y-1], vertical_array[x], horizontal_array[y]);
@@ -168,7 +170,7 @@ fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:
 }
 
 fn main(){
-    let img = image::open("bd.png").unwrap().to_rgb();
+    let img = image::open("img08.jpg").unwrap().to_rgb();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
@@ -187,18 +189,18 @@ fn main(){
     let mut edges = vec![1; width*height]; //1为背景, 0为边缘
     imgtools::edge_detect_gray(&gray_values, &mut edges, width, threshold);
 
-    //保存边缘图
-    let mut bimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width as u32, height as u32);
-    let mut i = 0;
-    for y in 0..height{
-        for x in 0..width{
-            if edges[i] == 0{
-                bimg.put_pixel(x as u32, y as u32, Rgb([255u8, 0u8, 0u8]));
-            }
-            i += 1;
-        }
-    }
-    let _ = bimg.save("edge.png");
+    // //保存边缘图
+    // let mut bimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width as u32, height as u32);
+    // let mut i = 0;
+    // for y in 0..height{
+    //     for x in 0..width{
+    //         if edges[i] == 0{
+    //             bimg.put_pixel(x as u32, y as u32, Rgb([255u8, 0u8, 0u8]));
+    //         }
+    //         i += 1;
+    //     }
+    // }
+    // let _ = bimg.save("edge.png");
 
     println!("边缘检测{}ms", duration_to_milis(&now.elapsed())); let now = Instant::now();
 
@@ -211,33 +213,8 @@ fn main(){
     for rect in rects{
         imageproc::drawing::draw_hollow_rect_mut(&mut output, imageproc::rect::Rect::at(rect.left as i32, rect.top as i32).of_size(rect.width as u32, rect.height as u32), Rgb([255u8, 0u8, 0u8]));
     }
-    
 
-    //let hlines = edges.chunks(width).enumerate(); 
-    //let vlines = edges.chunks(); //纵向分割线
-    
-
-    /*
-    图片类型
-    1、检查图图片是否有横向、纵向贯穿线，如果有，那么按照贯穿先分割，直到不能再分割为止
-    2、如果没有贯穿线，按照一整个文字识别
-
-    */
-
-    //切割黑色像素
-    
-
-    //绘制横向分割线
     println!("图片大小: {}x{}", width, height);
-    // for y in ysplits{
-    //     imageproc::drawing::dline_segment_mut(&mut output, (0.0, y as f32), (width as f32, y as f32), Rgb([255u8, 0u8, 0u8]));
-    // }
-    // for x in xsplits{
-    //     imageproc::drawing::dline_segment_mut(&mut output, (x as f32, 0.0), (x as f32, height as f32), Rgb([255u8, 0u8, 0u8]));
-    // }
-
-    //切割结果处理: 根据切合图片的比例，正方形按照单个识别，横向长方形按照单行识别，纵向长方形不识别。
-
     println!("分割耗时 {}ms", duration_to_milis(&now.elapsed()));
 
     //分割算法
