@@ -1,188 +1,256 @@
 extern crate image;
 use std::time::{Duration, Instant};
+mod imgtools;
 use image::{GenericImage, Rgb, ImageBuffer};
 extern crate imageproc;
+extern crate resize;
+use resize::Pixel::RGB24;
+use resize::Type::*;
 
-/// 双峰直方图计算阈值
-/// 
-/// 参考文献: 梁华为.直接从双峰直方图确定二值化阈值 https://wenku.baidu.com/view/df7da2d5b14e852458fb57b5.html
-///
-/// # Params
-/// - `pixels`: 图像数据
-/// - `bpp`: 每个像素占用字节 
-/// 
-/// # Return
-/// - (u8, Vec<u8>) (阈值, 每个像素对应灰度)
-fn calc_threshold(pixels: &[u8], bpp: usize) -> (u8, Vec<u8>){
-    //统计灰度直方图数据
-    let mut gray_count = vec![0; 256];
-    let mut gray_sum = 0;
-    let pixel_count = pixels.len()/bpp;//总像素数
-    let mut gray_values = vec![0u8; pixel_count];
-    //循环每个像素统计灰度总和和灰度平均值
-    for (i, pixel) in pixels.chunks(bpp).enumerate(){
-        let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
-        gray_count[gray] += 1;
-        gray_sum += gray;
-        gray_values[i] = gray as u8;
-    }
-
-    // (1) 计算图像灰度平均值、标准偏差(标准差)sigma
-    let avg = (gray_sum as f32/pixel_count as f32) as i32;//计算灰度平均值
-    let sigma = {//计算标准差
-        //方差和
-        let total:i32 = gray_values.iter().map(|v|{ (*v as i32-avg)*(*v as i32-avg) }).sum();
-        (total as f32/pixel_count as f32).sqrt()//求出标准差
-    };
-
-    // (2) 以像素平均值为分界点，分别求出左、右部分的最大值的位置
-    let mut left_max_pos = gray_count.get(0..avg as usize).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0;
-    let mut right_max_pos = gray_count.get(avg as usize..gray_count.len()).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0+avg as usize;
-
-    // (3) 若两峰位置相距较近(在标准偏差范围内)，说明该直方图的双峰中有一个峰很低，因此需要另寻低峰的位置，否则至第(7)步
-    let dist = (right_max_pos as isize-left_max_pos as isize).abs(); //位置距离
-    if dist<sigma as isize{//另寻低峰
-        // (4) 求出像素灰度中值点位置
-        let mut sort_gray_values = gray_values.clone();
-        sort_gray_values.sort();//排序并取中间值
-        let mid_value = sort_gray_values[sort_gray_values.len()/2];
-
-        // (5) 如果midpos>avg表明小峰在大峰左边(较低灰度级)；否则，表明小峰在大峰右边(较高灰度级)，相应调整分界点位置
-        // (6) 重新求出大、小峰的位置
-        if mid_value as i32>avg{//小峰在大峰左边
-            //从原先左峰往左边移动sigma距离，寻找最高峰
-            left_max_pos = gray_count.get(0..(left_max_pos-sigma as usize)).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0;
-        }else{//小峰在大峰右边
-            //从原先右峰往右边移动sigma距离，寻找最高峰
-            right_max_pos = gray_count.get((right_max_pos+sigma as usize)..gray_count.len()).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0+(right_max_pos+sigma as usize);
+#[derive(Debug)]
+struct SplitInfo{
+    left: usize,
+    top: usize,
+    width: usize,
+    height: usize
+}
+impl SplitInfo{
+    pub fn new(left:usize, top:usize, width: usize, height: usize) -> SplitInfo{
+        SplitInfo{
+            left, top, width, height
         }
-        ((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values)
-    }else{
-        // (7) 以两峰位置的中点做为阈值
-        ((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values)
     }
 }
 
-/// 灰度图像边缘检测，填充为白底黑前景的RGB/RGBA图
-///
-/// # Params
-///
-/// - `gray_values`: 每个像素对应的灰度值
-/// - `out`: 输出RGB/RGBA(背景为白色，前景为黑色)
-/// - `bpl`: 每行占用字节
-/// - `bpp`: 每个像素占用字节
-/// - `thresholds`: 阈值
-pub fn edge_detect_gray(gray_values:&[u8], out:&mut [u8], bpl:usize, bpp: usize, threshold:u8){
-    // 检测格式:
-    //
-    //     B H
-    //     H
-    //
-    // B 当前像素 Bipolar cell 双极细胞
-    // H 周围像素 Horizontal cell 水平细胞
-    let width = bpl/bpp;
-    let pixels_count = gray_values.len();
+fn split(infos: &mut Vec<SplitInfo>, edges:&[u16], width: usize, height: usize){
+    //println!("split>>> {},{},{},{}", left, top, width, height);
 
-    //let mut i = 0;
-    for (i, pixel) in out.chunks_mut(bpp).enumerate(){
-        let hrid = i+1;//右边一个像素[水平细胞]的位置(向后偏移一个像素)
-        let hbid = i+width;//下边一个像素[水平细胞]位置(向后偏移一行)
+    //首先裁剪上下左右的黑白像素, 将 edges替换
+    //去除上黑边
+    let (mut left, mut top, mut right, mut bottom) = (0, 0, width, height);
+    for row in edges.chunks(width){
+        let sum:u16 = row.iter().sum();//全为1的是底线
+        if sum == width as u16{
+            top += 1;
+        }else{
+            //不是底线停止
+            break;
+        }
+    }
+    //去除下黑边
+    for row in edges.chunks(width).rev(){
+        let sum:u16 = row.iter().sum();
+        if sum == width as u16{
+            bottom -= 1;
+        }else{
+            break;
+        }
+    }
+    //去除左黑边
+    let tp = edges.len();//总长度
+    for x in 0..width{
+        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        if sum == height as u16{
+            left += 1;
+        }else{
+            break;
+        }
+    }
+    //去除右黑边
+    for x in (0..width).rev(){
+        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        if sum == height as u16{
+            right -= 1;
+        }else{
+            break;
+        }
+    }
 
-        //当前像素[双极细胞]输出     -- 亮光兴奋，弱光抑制
-        let b_out = if gray_values[i] >= threshold{ 1 }else{ -1 };
-        
-        //计算周围像素[水平细胞]输出  -- 亮光抑制，弱光兴奋
-        if hrid<pixels_count && hbid < pixels_count{
-            let hr_out = if gray_values[hrid] >= threshold{ -1 }else{ 1 };
-            let hb_out = if gray_values[hbid] >= threshold{ -1 }else{ 1 };
+    检查黑边去除是否正确！！！
 
-            if b_out*2+hr_out+hb_out != 0{
-                //标记边缘
-                pixel[0] = 0;
-                pixel[1] = 0;
-                pixel[2] = 0;
+    println!("split_info={:?}", split_info);
+    let mut new_edges = vec![];//获取对应坐标区域的像素数据
+    //宽度xTOP+LEFT 至 宽度x(TOP+HEIGHT-1)+LEFT
+    let sub = edges.get(width*split_info.top+split_info.left..width*(split_info.top+split_info.height)+split_info.left);
+    if sub.is_none(){
+        return;
+    }
+    for slice in sub.unwrap().chunks(width){
+        //检查每个slice和{ left: 31, top: 11, width: 106, height: 41 }区域是否对应
+        //println!("{:?}", slice.get(0..split_info.width));
+        new_edges.extend_from_slice(slice.get(0..split_info.width).unwrap());
+    }
+    //重新计算相关参数
+    let (width, height) = (split_info.width, split_info.height); //当前检测图像的宽高
+    let total_pixels = new_edges.len();
+    let edges = new_edges;
+    println!("total_pixels={}", width*height);
+    //1为背景 0为边缘
+    //------------------ 寻找横向分割线 ------------
+    let mut ysplits:Vec<usize> = vec![]; //存储所有横向分割线的y坐标
+    let mut ycount = 0;
+    for (y, row) in edges.chunks(width).enumerate(){
+        let sum:u16 = row.iter().sum();
+        if sum == width as u16{//整行都是白色像素的为分割线
+            //println!("横分割线: y={} width={}", y, width);
+            if ycount == 0{
+                ysplits.push(y);
+                ycount += 1;
             }else{
-                pixel[0] = 255;
-                pixel[1] = 255;
-                pixel[2] = 255;
-            }
-            if bpp == 4{
-                pixel[3] = 255;//不透明
+                if ysplits[ycount-1]+1 == y{//不要连续的分割线
+                    ysplits[ycount-1] = y;
+                }else{
+                    ysplits.push(y);
+                    ycount += 1;
+                }
             }
         }
     }
+    //寻找纵向分割线
+    let mut xsplits:Vec<usize> = vec![];
+    let mut xcount = 0;
+    for x in 0..width{
+        let sum:u16 = edges.get(x..total_pixels).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        //println!("sum={} x={}", sum, x);
+        if sum == height as u16{
+            //println!("竖分割线: x={}", x);
+            if xcount == 0{
+                xsplits.push(x);
+                xcount += 1;
+            }else{
+                if xsplits[xcount-1]+1 == x{//不要连续的分割线
+                    xsplits[xcount-1] = x;
+                }else{
+                    xsplits.push(x);
+                    xcount += 1;
+                }
+            }
+        }
+    }
+    
+    println!("ysplits={:?}", ysplits);
+    println!("xsplits={:?}", xsplits);
+
+    //无法分割说明找到分割快
+    // if ysplits.len() == 0 && xsplits.len() == 0{
+    //     split_info.left += parent_left;
+    //     split_info.top += parent_top;
+    //     infos.push(split_info);
+    // }else{
+    //     //println!("ysplits.len()={}, xsplits.len()={}", ysplits.len(), xsplits.len());
+    //     //根据分割线交叉点，分割每一块
+        
+    //     let mut last_y = 0;
+    //     ysplits.push(height-1);
+    //     xsplits.push(width-1);
+    //     for y in ysplits{
+    //         let mut last_x = 0;
+    //         for x in &xsplits{
+    //             let (left, top, block_width, block_height) = (last_x, last_y, x-last_x, y-last_y);
+    //            //println!("left:{}, top:{}, width:{}, height:{}", left, top, block_width, block_height);
+    //             if block_width==1 || block_height==1{
+    //                 continue;
+    //             }
+    //             println!("left:{}, top:{}, width:{}, height:{}", left, top, block_width, block_height);
+    //             //let split_info = SplitInfo::new(left, top, block_height, block_height);
+                
+    //             //let rect = imageproc::rect::Rect::at(left as i32, top as i32).of_size(block_width as u32, block_height as u32);
+    //            // imageproc::drawing::dhollow_rect_mut(image, rect, Rgb([255u8, 0u8, 0u8]));
+    //             //image.save("output.png").unwrap();
+
+    //             //get sub edges and split
+    //             //println!("{:?}", edges);
+                
+    //             let mut sub_edges = vec![];//获取对应坐标区域的像素数据
+    //             for slice in edges.get(width*last_y+last_x..width*y-(width-x)).unwrap().chunks(width){
+    //                 sub_edges.extend_from_slice(slice.get(0..block_width).unwrap());
+    //             }
+    //             //计算像素数，如果像素数为空(全是黑色像素)，忽略
+    //             //println!("{:?}", sub_edges);
+    //             let pixel_count:u16 = sub_edges.iter().sum();
+    //             // println!("像素数:{}  白色素数:{} block_width={}, block_height={}", sub_edges.len(), sub_edges.len()-pixel_count as usize, block_width, block_height);
+    //             if !(pixel_count==sub_edges.len() as u16){
+    //                 split(infos, &sub_edges, parent_left+left, parent_top+top, block_width, block_height);
+    //             }else{
+    //                 println!("全黑像素，忽略!");
+    //             }
+                
+    //             last_x = *x;
+    //         }
+    //         last_y = y;
+    //     }
+
+    // }
+    // (ysplits, xsplits)
 }
 
 fn main(){
-    // let img = image::open("lena.jpg").unwrap().to_rgb();
-    let img = image::open("qq.jpg").unwrap().to_rgb();
-    // let img = image::open("jt.png").unwrap().to_rgb();
-    // let img = image::open("shou.png").unwrap().to_rgb();
-    // let img = image::open("s.png").unwrap().to_rgb();
-    // let img = image::open("aa.jpeg").unwrap().to_rgb();
-    // let img = image::open("bb.jpg").unwrap().to_rgb();
+    let img = image::open("img10.jpg").unwrap().to_rgb();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
     let now = Instant::now();
-    
-    // let mut t = 0;
-    // for _ in 0..1000{
-    //     t = calc_threshold(&pixels, 3).0;
-    // }
+
     let bpp = 3;
 
     //计算阈值和像素灰度值
-    let (t, gray_values) = calc_threshold(&pixels, bpp);
-    //通过边缘检测，将图片转换为白底黑字
-    edge_detect_gray(&gray_values, &mut pixels, bpp*width, bpp, t);
+    let (threshold, gray_values) = imgtools::calc_threshold(&pixels, bpp);
+    println!("计算阈值{}ms 阈值:{}", duration_to_milis(&now.elapsed()), threshold); let now = Instant::now();
+    //将原图像二值化
+    imgtools::binary(&gray_values, &mut pixels, bpp, threshold);
+    println!("二值化{}ms", duration_to_milis(&now.elapsed())); let now = Instant::now();
+
+    //边缘检测
+    let mut edges = vec![1; width*height]; //1为背景, 0为边缘
+    imgtools::edge_detect_gray(&gray_values, &mut edges, width, threshold);
+
+    println!("边缘检测{}ms", duration_to_milis(&now.elapsed())); let now = Instant::now();
+
+    let mut output:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap();
+
+    //根据edges分割
+    let mut rects = vec![];
+    split(&mut rects, &edges, width, height);
+
+    for rect in rects{
+        imageproc::drawing::draw_hollow_rect_mut(&mut output, imageproc::rect::Rect::at(rect.left as i32, rect.top as i32).of_size(rect.width as u32, rect.height as u32), Rgb([255u8, 0u8, 0u8]));
+    }
+    
+
+    //let hlines = edges.chunks(width).enumerate(); 
+    //let vlines = edges.chunks(); //纵向分割线
+    
+
+    /*
+    图片类型
+    1、检查图图片是否有横向、纵向贯穿线，如果有，那么按照贯穿先分割，直到不能再分割为止
+    2、如果没有贯穿线，按照一整个文字识别
+
+    */
+
     //切割黑色像素
+    
 
-    //从左往右，水平方向投影扫描
-    let mut horizontal_shoots = vec![0; width];
-    for row in pixels.chunks(width*bpp){
-        for (x, pixel) in row.chunks(bpp).enumerate(){
-            if pixel[0] == 0{
-                horizontal_shoots[x] += 2;
-            }
-        }
-    }
-    //println!("horizontal_shoots={:?}", horizontal_shoots);
-    //从上往下，纵向投影扫描
-    let mut vertical_shoots = vec![0; height];
-    for x in 0..width{
-        for y in 0..height{
-            let i = y*width+x;
-            if pixels[i*3] == 0{
-                vertical_shoots[y] += 2;
-            }
-        }
-    }
-
-    //绘制投影图
-    {
-        
-        let mut shoot = ImageBuffer::new(width as u32, 300);
-        for x in 1..width{
-            imageproc::drawing::draw_line_segment_mut(&mut shoot, (x as f32-1.0, horizontal_shoots[x-1] as f32), (x as f32, horizontal_shoots[x] as f32), Rgb([255u8, 255u8, 0u8]));
-        }
-        for y in 1..height{
-            imageproc::drawing::draw_line_segment_mut(&mut shoot, (vertical_shoots[y-1] as f32, y as f32-1.0), (vertical_shoots[y] as f32, y as f32), Rgb([255u8, 255u8, 0u8]));
-        }
-        
-        shoot.save("shoot.png").unwrap();
-    }
+    //绘制横向分割线
+    println!("图片大小: {}x{}", width, height);
+    // for y in ysplits{
+    //     imageproc::drawing::dline_segment_mut(&mut output, (0.0, y as f32), (width as f32, y as f32), Rgb([255u8, 0u8, 0u8]));
+    // }
+    // for x in xsplits{
+    //     imageproc::drawing::dline_segment_mut(&mut output, (x as f32, 0.0), (x as f32, height as f32), Rgb([255u8, 0u8, 0u8]));
+    // }
 
     //切割结果处理: 根据切合图片的比例，正方形按照单个识别，横向长方形按照单行识别，纵向长方形不识别。
 
-
-    println!("耗时{}ms 阈值:{}", duration_to_milis(&now.elapsed()), t);
+    println!("分割耗时 {}ms", duration_to_milis(&now.elapsed()));
 
     //分割算法
     //https://blog.csdn.net/zhongyunde/article/details/7840717
+    //http://www.danvk.org/2015/01/07/finding-blocks-of-text-in-an-image-using-python-opencv-and-numpy.html
+    //http://www.danvk.org/2015/01/09/extracting-text-from-an-image-using-ocropus.html
     
-    let newimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap();
-    newimg.save("new.png").unwrap();
+    
+    output.save("output.png").unwrap();
 }
 
 pub fn duration_to_milis(duration: &Duration) -> f64 {
