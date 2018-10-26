@@ -22,26 +22,27 @@ impl SplitInfo{
     }
 }
 
-fn split(infos: &mut Vec<SplitInfo>, edges:&[u16], width: usize, height: usize){
+/// parent_left 父级
+fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:&[u16], width: usize, height: usize){
     //println!("split>>> {},{},{},{}", left, top, width, height);
 
     //首先裁剪上下左右的黑白像素, 将 edges替换
     //去除上黑边
     let (mut left, mut top, mut right, mut bottom) = (0, 0, width, height);
-    for row in edges.chunks(width){
+    for (y, row) in edges.chunks(width).enumerate(){
         let sum:u16 = row.iter().sum();//全为1的是底线
         if sum == width as u16{
-            top += 1;
+            top = y+1;
         }else{
             //不是底线停止
             break;
         }
     }
     //去除下黑边
-    for row in edges.chunks(width).rev(){
+    for (y, row) in edges.chunks(width).enumerate().rev(){
         let sum:u16 = row.iter().sum();
         if sum == width as u16{
-            bottom -= 1;
+            bottom = y;
         }else{
             break;
         }
@@ -66,126 +67,108 @@ fn split(infos: &mut Vec<SplitInfo>, edges:&[u16], width: usize, height: usize){
         }
     }
 
-    检查黑边去除是否正确！！！
-
-    println!("split_info={:?}", split_info);
-    let mut new_edges = vec![];//获取对应坐标区域的像素数据
-    //宽度xTOP+LEFT 至 宽度x(TOP+HEIGHT-1)+LEFT
-    let sub = edges.get(width*split_info.top+split_info.left..width*(split_info.top+split_info.height)+split_info.left);
-    if sub.is_none(){
+    //println!("{},{},{},{}", left, top, right, bottom);
+    if right==0 || bottom==0{//无效检测
         return;
     }
-    for slice in sub.unwrap().chunks(width){
-        //检查每个slice和{ left: 31, top: 11, width: 106, height: 41 }区域是否对应
-        //println!("{:?}", slice.get(0..split_info.width));
-        new_edges.extend_from_slice(slice.get(0..split_info.width).unwrap());
+
+    //获取裁剪区域的像素数据
+    let mut new_edges = vec![];
+    //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
+    for slice in edges.get(width*top+left..width*(bottom-1)+right).unwrap().chunks(width){
+        //取宽度对应的数据
+        //println!("{:?}", slice.get(0..(right-left)));
+        new_edges.extend_from_slice(slice.get(0..(right-left)).unwrap());
     }
-    //重新计算相关参数
-    let (width, height) = (split_info.width, split_info.height); //当前检测图像的宽高
-    let total_pixels = new_edges.len();
-    let edges = new_edges;
-    println!("total_pixels={}", width*height);
-    //1为背景 0为边缘
-    //------------------ 寻找横向分割线 ------------
-    let mut ysplits:Vec<usize> = vec![]; //存储所有横向分割线的y坐标
-    let mut ycount = 0;
-    for (y, row) in edges.chunks(width).enumerate(){
-        let sum:u16 = row.iter().sum();
-        if sum == width as u16{//整行都是白色像素的为分割线
-            //println!("横分割线: y={} width={}", y, width);
-            if ycount == 0{
-                ysplits.push(y);
-                ycount += 1;
-            }else{
-                if ysplits[ycount-1]+1 == y{//不要连续的分割线
-                    ysplits[ycount-1] = y;
-                }else{
-                    ysplits.push(y);
-                    ycount += 1;
-                }
-            }
-        }
-    }
-    //寻找纵向分割线
-    let mut xsplits:Vec<usize> = vec![];
-    let mut xcount = 0;
-    for x in 0..width{
-        let sum:u16 = edges.get(x..total_pixels).unwrap().chunks(width).map(|slice| slice[0]).sum();
-        //println!("sum={} x={}", sum, x);
-        if sum == height as u16{
-            //println!("竖分割线: x={}", x);
-            if xcount == 0{
-                xsplits.push(x);
-                xcount += 1;
-            }else{
-                if xsplits[xcount-1]+1 == x{//不要连续的分割线
-                    xsplits[xcount-1] = x;
-                }else{
-                    xsplits.push(x);
-                    xcount += 1;
-                }
-            }
-        }
-    }
+
+    let (new_width, new_height) = (right-left, bottom-top);
+
     
-    println!("ysplits={:?}", ysplits);
-    println!("xsplits={:?}", xsplits);
+    //------------------ 水平分割线 ------------
+    let mut horizontal_array:Vec<usize> = vec![];//存储y坐标
+    let mut count = 0;
+    for (y, row) in new_edges.chunks(new_width).enumerate(){
+        let sum:u16 = row.iter().sum();
+        if sum == new_width as u16{//整行都是白色像素的为分割线
+            if count == 0{
+                horizontal_array.push(y);
+                count += 1;
+            }else{
+                if horizontal_array[count-1]+1 == y{//不要连续的分割线
+                    horizontal_array[count-1] = y;
+                }else{
+                    horizontal_array.push(y);
+                    count += 1;
+                }
+            }
+        }
+    }
 
-    //无法分割说明找到分割快
-    // if ysplits.len() == 0 && xsplits.len() == 0{
-    //     split_info.left += parent_left;
-    //     split_info.top += parent_top;
-    //     infos.push(split_info);
-    // }else{
-    //     //println!("ysplits.len()={}, xsplits.len()={}", ysplits.len(), xsplits.len());
-    //     //根据分割线交叉点，分割每一块
-        
-    //     let mut last_y = 0;
-    //     ysplits.push(height-1);
-    //     xsplits.push(width-1);
-    //     for y in ysplits{
-    //         let mut last_x = 0;
-    //         for x in &xsplits{
-    //             let (left, top, block_width, block_height) = (last_x, last_y, x-last_x, y-last_y);
-    //            //println!("left:{}, top:{}, width:{}, height:{}", left, top, block_width, block_height);
-    //             if block_width==1 || block_height==1{
-    //                 continue;
-    //             }
-    //             println!("left:{}, top:{}, width:{}, height:{}", left, top, block_width, block_height);
-    //             //let split_info = SplitInfo::new(left, top, block_height, block_height);
-                
-    //             //let rect = imageproc::rect::Rect::at(left as i32, top as i32).of_size(block_width as u32, block_height as u32);
-    //            // imageproc::drawing::dhollow_rect_mut(image, rect, Rgb([255u8, 0u8, 0u8]));
-    //             //image.save("output.png").unwrap();
+    //寻找纵向分割线
+    let mut vertical_array:Vec<usize> = vec![];//存储x坐标
+    count = 0;
+    let total_pixels = new_width*new_height;
+    for x in 0..width{
+        //垂直线扫描
+        if let Some(slice) = new_edges.get(x..total_pixels){//过滤无效
+            let sum:u16 = slice.chunks(new_width).map(|slice| slice[0]).sum();
+            if sum == new_height as u16{
+                //println!("竖分割线: x={}", x);
+                if count == 0{
+                    vertical_array.push(x);
+                    count += 1;
+                }else{
+                    if vertical_array[count-1]+1 == x{//不要连续的分割线
+                        vertical_array[count-1] = x;
+                    }else{
+                        vertical_array.push(x);
+                        count += 1;
+                    }
+                }
+            }
+        }
+    }
 
-    //             //get sub edges and split
-    //             //println!("{:?}", edges);
-                
-    //             let mut sub_edges = vec![];//获取对应坐标区域的像素数据
-    //             for slice in edges.get(width*last_y+last_x..width*y-(width-x)).unwrap().chunks(width){
-    //                 sub_edges.extend_from_slice(slice.get(0..block_width).unwrap());
-    //             }
-    //             //计算像素数，如果像素数为空(全是黑色像素)，忽略
-    //             //println!("{:?}", sub_edges);
-    //             let pixel_count:u16 = sub_edges.iter().sum();
-    //             // println!("像素数:{}  白色素数:{} block_width={}, block_height={}", sub_edges.len(), sub_edges.len()-pixel_count as usize, block_width, block_height);
-    //             if !(pixel_count==sub_edges.len() as u16){
-    //                 split(infos, &sub_edges, parent_left+left, parent_top+top, block_width, block_height);
-    //             }else{
-    //                 println!("全黑像素，忽略!");
-    //             }
-                
-    //             last_x = *x;
-    //         }
-    //         last_y = y;
-    //     }
+    //如果纵向和横向分割线为0，说明是单独的文字块了，返回
+    if horizontal_array.len() == 0 && vertical_array.len() == 0{
+        let info = SplitInfo::new(parent_left+left, parent_top+top, new_width, new_height);
+        // println!("方块 {:?}", info);
+        infos.push(info);
+    }else{
+    //否则需要拆分
+        //补0和结尾
+        // println!("补之前: {:?}", horizontal_array);
+        // println!("补之前: {:?}", vertical_array);
+        horizontal_array.insert(0, 0);
+        horizontal_array.push(new_height);
+        vertical_array.insert(0, 0);
+        vertical_array.push(new_width);
 
-    // }
-    // (ysplits, xsplits)
+        // println!("{:?}", horizontal_array);
+        // println!("{:?}", vertical_array);
+        for y in 1..horizontal_array.len(){
+            for x in 1..vertical_array.len(){
+                let (split_left, split_top, split_right, split_bottom) = (vertical_array[x-1], horizontal_array[y-1], vertical_array[x], horizontal_array[y]);
+                let split_width = split_right-split_left;
+                let split_height = split_bottom-split_top;
+                // println!("{},{},{},{}", split_left, split_top, split_width, split_height);
+                //获取字块像素
+                let mut split_edges = vec![];
+                //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
+                for slice in new_edges.get(new_width*split_top+split_left..new_width*(split_bottom-1)+split_right).unwrap().chunks(new_width){
+                    //取宽度对应的数据
+                    //println!("{:?}", slice.get(0..split_width));
+                    split_edges.extend_from_slice(slice.get(0..split_width).unwrap());
+                }
+                //递归继续分割
+                split(infos, parent_left+left+split_left, parent_top+top+split_top, &split_edges, split_width, split_height);
+            }
+        }
+    }
 }
 
 fn main(){
-    let img = image::open("img10.jpg").unwrap().to_rgb();
+    let img = image::open("bd.png").unwrap().to_rgb();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
@@ -204,13 +187,26 @@ fn main(){
     let mut edges = vec![1; width*height]; //1为背景, 0为边缘
     imgtools::edge_detect_gray(&gray_values, &mut edges, width, threshold);
 
+    //保存边缘图
+    let mut bimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width as u32, height as u32);
+    let mut i = 0;
+    for y in 0..height{
+        for x in 0..width{
+            if edges[i] == 0{
+                bimg.put_pixel(x as u32, y as u32, Rgb([255u8, 0u8, 0u8]));
+            }
+            i += 1;
+        }
+    }
+    let _ = bimg.save("edge.png");
+
     println!("边缘检测{}ms", duration_to_milis(&now.elapsed())); let now = Instant::now();
 
     let mut output:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap();
 
     //根据edges分割
     let mut rects = vec![];
-    split(&mut rects, &edges, width, height);
+    split(&mut rects, 0, 0, &edges, width, height);
 
     for rect in rects{
         imageproc::drawing::draw_hollow_rect_mut(&mut output, imageproc::rect::Rect::at(rect.left as i32, rect.top as i32).of_size(rect.width as u32, rect.height as u32), Rgb([255u8, 0u8, 0u8]));
