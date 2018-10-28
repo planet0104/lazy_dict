@@ -20,7 +20,16 @@ impl SplitInfo{
 }
 
 /// parent_left 父级
-fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:&[u16], width: usize, height: usize){
+/// 
+/// 
+fn split(parent_left:usize, parent_top:usize, edges:&[u16], width: usize, height: usize) -> Vec<SplitInfo>{
+    每次迭代返回以后和平均值进行对比！！！！！
+    如果拆分结果都小于平均值，那么直接添加拆分之前的！！！！！
+
+
+    //这里拆分之前，要检测是否过度拆分， “杰、们、会”等字不应该再次拆分
+      //  至于标点逗号，能否根据平均宽高来过滤？
+        //至于半个字，也要过滤掉
     //println!("split>>> {},{},{},{}", left, top, width, height);
 
     //首先裁剪上下左右的黑白像素, 将 edges替换
@@ -128,9 +137,26 @@ fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:
 
     //如果纵向和横向分割线为0，说明是单独的文字块了，返回
     if horizontal_array.len() == 0 && vertical_array.len() == 0{
+        let mut total = 0;
+        for info in infos.iter(){
+            total += info.width*info.height;
+        }
+        let avg = if total>0{
+            total/infos.len()
+        }else{
+            0
+        };
+
         let info = SplitInfo::new(parent_left+left, parent_top+top, new_width, new_height);
-        // println!("方块 {:?}", info);
-        infos.push(info);
+        let area = info.width*info.height;
+        // println!("面积:{}", info.width*info.height);
+        if avg!=0 && avg/area>=2{
+            false
+        }else{
+            infos.push(info);
+            true
+        }
+        // println!("平均面积:{}", total/infos.len());
     }else{
     //否则需要拆分
         //补0和结尾
@@ -143,10 +169,6 @@ fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:
 
         // println!("{:?}", horizontal_array);
         // println!("{:?}", vertical_array);
-
-        这里拆分之前，要检测是否过度拆分， “杰、们、会”等字不应该再次拆分
-        至于标点逗号，能否根据平均宽高来过滤？
-        至于半个字，也要过滤掉
 
         for y in 1..horizontal_array.len(){
             for x in 1..vertical_array.len(){
@@ -166,6 +188,7 @@ fn split(infos: &mut Vec<SplitInfo>, parent_left:usize, parent_top:usize, edges:
                 split(infos, parent_left+left+split_left, parent_top+top+split_top, &split_edges, split_width, split_height);
             }
         }
+        true
     }
 }
 
