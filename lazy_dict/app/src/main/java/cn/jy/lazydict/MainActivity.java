@@ -452,6 +452,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         t.start();
     }
 
+    
     @Override
     protected void onPause() {
         super.onPause();

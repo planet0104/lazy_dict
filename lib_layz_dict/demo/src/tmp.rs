@@ -90,3 +90,57 @@
     // let newimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, gray_bar).unwrap();
     // println!("width={}", newimg.width());
     // newimg.save("new.png").unwrap();
+
+
+            let mut total = 0;
+        for info in infos.iter(){
+            total += info.width*info.height;
+        }
+        let avg = if total>0{
+            total/infos.len()
+        }else{
+            0
+        };
+
+        let info = SplitInfo::new(parent_left+left, parent_top+top, new_width, new_height);
+        let area = info.width*info.height;
+        // println!("面积:{}", info.width*info.height);
+        if avg!=0 && avg/area>=2{
+            false
+        }else{
+            infos.push(info);
+            true
+        }
+
+
+
+
+
+
+            //过滤比例不对的方块
+    let mut new_infos = vec![];
+    for ifo in &infos{
+        if ifo.height as f32 / ifo.width as f32>1.8
+            || ifo.width as f32 / ifo.height as f32>1.8{
+            continue;
+        }else{
+            new_infos.push(SplitInfo::new(ifo.left, ifo.top, ifo.width, ifo.height));
+        }
+    }
+
+
+    
+    //保存边缘图
+    // let mut bimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width as u32, height as u32);
+    // let mut i = 0;
+    // for y in 0..height{
+    //     for x in 0..width{
+    //         if edges[i] == 0{
+    //             bimg.put_pixel(x as u32, y as u32, Rgb([255u8, 0u8, 0u8]));
+    //         }
+    //         i += 1;
+    //     }
+    // }
+    // let _ = bimg.save("edge.png");
+
+    //println!("边缘检测{}ms", duration_to_milis(&now.elapsed())); let now = Instant::now();
