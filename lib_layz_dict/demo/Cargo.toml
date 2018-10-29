@@ -6,3 +6,4 @@ authors = ["Jia Ye <planet0104@gmail.com>"]
 [dependencies]
 image = "*"
 imageproc = "*"
+rand = "0.5.5"
