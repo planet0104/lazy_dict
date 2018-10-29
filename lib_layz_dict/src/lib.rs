@@ -15,7 +15,6 @@ use std::os::raw::{c_void};
 extern crate rayon;
 extern crate libc;
 extern crate bytes;
-mod retina;
 mod utils;
 mod jni_graphics;
 mod native_window;
@@ -99,6 +98,8 @@ pub extern fn Java_cn_jy_lazydict_MainActivity_startRecognize(_env: JNIEnv, _act
 	});
 }
 
+// fn recognize
+
 
 ///两个需要改动的
 /// 1、识别文字时的图片处理开启单独线程 let env = attach_current_thread();
@@ -163,147 +164,73 @@ fn render(app: &mut Application, result:&mut [i32;2], env: &JNIEnv, activity_cla
 
 			trace!("图片旋转成功，旋转角度:{} 图片大小{}x{} 耗时{}ms", sensor_orientation, width, height, utils::duration_to_milis(&now.elapsed()));
 
+			//108ee9
+
+			// let clip_width = (width as f32*0.4) as usize;
+			// let clip_height = (width as f32*0.4) as usize;
+			// let rect = Rect::new((width-clip_width)/2, (height-clip_height)/2, clip_width, clip_height);
+			// imgtool::stroke_rect(&mut rotate_raw_buffer, width, &rect, &[16, 142, 233], 1, 3)?;
 
 			//预览启动1.5秒以后再进行识别, 避免CPU使用过度卡住主线程动画
 			let rec_result = (||->Result<(), String> {
-				if rec{
-					//取中间部分识别(因为要预分割，所以只支持水平、垂直模式的文字，混合模式不支持)
-					let clip_width = (width as f32*0.3) as usize;
-					let clip_height = (width as f32*0.3) as usize;
-					let rect = Rect::new((width-clip_width)/2, (height-clip_height)/2, clip_width, clip_height);
-					imgtool::stroke_rect(&mut rotate_raw_buffer, width, &rect, &[255, 255, 0], 1, 3)?;
-					debug!("{:?}", rect);
+				// if rec{
+				// 	//取中间部分识别(因为要预分割，所以只支持水平、垂直模式的文字，混合模式不支持)
+				// 	let clip_width = (width as f32*0.3) as usize;
+				// 	let clip_height = (width as f32*0.2) as usize;
+				// 	let rect = Rect::new((width-clip_width)/2, (height-clip_height)/2, clip_width, clip_height);
+				// 	imgtool::stroke_rect(&mut rotate_raw_buffer, width, &rect, &[255, 255, 0], 1, 3)?;
+				// 	//debug!("{:?}", rect);
 
-					let now = Instant::now();
+				// 	let now = Instant::now();
 					
-					let mut clip_buffer = imgtool::get_argb_rect_rgb(&rotate_raw_buffer, width, &rect)?;
-
-					//边缘检测
-
-
-					//二值化
-					for pixel in clip_buffer.chunks_mut(4){
-						//RGBA 127.5
-						let threshold = 127.5;
-						let (r,g,b) = (pixel[0], pixel[1], pixel[2]);
-						if 0.299*r as f32 + 0.587*g as f32 + 0.114*b as f32 >= threshold{
-							pixel[0] = 255;
-							pixel[1] = 255;
-							pixel[2] = 255;
-						}else{
-							pixel[0] = 0;
-							pixel[1] = 0;
-							pixel[2] = 0;
-						}
-					}
-					//预分割
-
-					//--------------------------- 统计纵向分割线 ---------------------------
-					//记录每行每个相同像素的数量，最后数量=高度的为竖线
-					let mut yline_counter = vec![];
-					for x in 0..rect.width{
-						//初始值为每行第一个像素的R值(RGB相等，只需要取一个)
-						yline_counter.push((clip_buffer[x*4], 0));//取RGBA中的R
-					}
-					for row in clip_buffer.chunks(rect.width*4){
-						for (x, pixel) in row.chunks(4).enumerate(){
-							//如果当前行的x列R值和上一行的x列R值相等，x列高的计数值+1
-							if yline_counter[x].0 == pixel[0]{
-								yline_counter[x].1 += 1;
-							}
-						}
-					}
-					//统计列高计数器=rect高度的列为纵向分割线
-					let mut ysplits = vec![];
-					for (x, (_, count)) in yline_counter.iter().enumerate(){
-						if *count as usize==rect.height{
-							ysplits.push(x);
-						}
-					}
-					//文字图像至少20像素
-					let min_stride = 20;
-					let max_stride = rect.width;
-					let mut row_blocks = vec![];
-					let mut i = 1;
-					while i<ysplits.len(){
-						//检查当前列标和上一个纵向分割线的列标距离，距离大于min_stride，保存当前列和前一列
-						if ysplits[i]-ysplits[i-1]>=min_stride && ysplits[i]-ysplits[i-1]<=max_stride{
-							row_blocks.push((ysplits[i-1], ysplits[i]));
-						}
-						i += 1;
-					}
-
-					//--------------------------- 统计横向分割线 ---------------------------
+				// 	let mut clip_buffer = imgtool::get_argb_rect_rgb(&rotate_raw_buffer, width, &rect)?;
 					
-					//横向分割线为每行中像素颜色全部相同的行
-					let mut xsplits = vec![];
-					for (y, row) in clip_buffer.chunks(rect.width*4).enumerate(){
-						let mut count = 0;
-						row.chunks(4).for_each(|pixel|{
-							count += pixel[0] as usize;
-						});
-						if count==rect.width*255 || count ==0{
-							xsplits.push(y);
-						}
-					}
-					let min_stride = 20;
-					let max_stride = rect.height;
-					let mut col_blocks = vec![];
-					let mut i = 1;
-					while i<xsplits.len(){
-						//检查当前列标和上一个纵向分割线的列标距离，距离大于min_stride，保存当前列和前一列
-						if xsplits[i]-xsplits[i-1]>=min_stride && xsplits[i]-xsplits[i-1]<=max_stride{
-							col_blocks.push((xsplits[i-1], xsplits[i]));
-						}
-						i += 1;
-					}
+				// 	let bpp = 4;
+				// 	//计算阈值和像素灰度值
+				// 	let (threshold, gray_values) = imgtool::calc_threshold(&clip_buffer, bpp);
+				// 	//将原图像二值化
+				// 	imgtool::binary(&gray_values, &mut clip_buffer, bpp, threshold);
+				// 	//边缘检测
+				// 	let mut edges = vec![1; clip_width*clip_height]; //1为背景, 0为边缘
+				// 	imgtool::edge_detect_gray(&gray_values, &mut edges, clip_width, threshold);
+				// 	//根据edges分割
+				// 	let sub_rects = imgtool::split(0, 0, &mut edges, clip_width, clip_height);
+				// 	if sub_rects.len()>0{
+				// 		//创建图片数组和宽高数组
+				// 		let size = sub_rects.len();
 
-					//--------------------------- 根据分割线分离文字块(4字) ---------------------------
-					//如果检测到文字块，取每个文字块进行识别
-					if col_blocks.len()>=1 && row_blocks.len()>=1{
-						//debug!("开始识别 col_blocks.len()={:?} row_blocks.len()={:?}", col_blocks.len(), row_blocks.len());
-						
-						//创建图片数组和宽高数组
-						let size = col_blocks.len()*row_blocks.len();
+				// 		let bitmap_bytes_array = env.new_object_array(size as i32, "[B", JObject::null()).map_err(mje)?;
+				// 		let width_array = env.new_int_array(size as i32).map_err(mje)?;
+				// 		let height_array = env.new_int_array(size as i32).map_err(mje)?;
 
-						let bitmap_bytes_array = env.new_object_array(size as i32, "[B", JObject::null()).map_err(mje)?;
-						let width_array = env.new_int_array(size as i32).map_err(mje)?;
-						let height_array = env.new_int_array(size as i32).map_err(mje)?;
-						
-						let mut pos = 0;
-						for col in 0..col_blocks.len(){//每个纵向块
-							for row in 0..row_blocks.len(){//每个横向块
-								//debug!("识别区域: rect={:?}, new_clip_rect={:?}", rect, new_clip_rect);
-								let row_block = row_blocks[row];
-								let col_block = col_blocks[col];
-								//截取文字图块
-								let sub_clip_rect = Rect::new(
-									row_block.0,
-									col_block.0,
-									row_block.1-row_block.0,
-									col_block.1-col_block.0
-								);
-								let ch_clip_buffer = imgtool::get_rect(&clip_buffer, rect.width, &sub_clip_rect, 4)?;
-								//转换jByteArray
-								let jbarray = env.byte_array_from_slice(&ch_clip_buffer).map_err(mje)?;
-								//添加图片数据
-								env.set_object_array_element(bitmap_bytes_array, pos, JObject::from(jbarray)).map_err(mje)?;
-								env.set_int_array_region(width_array, pos, &[sub_clip_rect.width as i32]).map_err(mje)?;
-								env.set_int_array_region(height_array, pos, &[sub_clip_rect.height as i32]).map_err(mje)?;
-								pos += 1;
-							}
-						}
-						
-						//将图片数据发送到java
-						env.call_method(JObject::from(activity_class), "getText", "([[B[I[II)V",
-							&[	JValue::from(JObject::from(bitmap_bytes_array)),//bitmaps
-								JValue::from(JObject::from(width_array)),//width
-								JValue::from(JObject::from(height_array)),//height
-								JValue::from(4)
-							]).map_err(|err|{ format!("{:?}", err) })?;
-					}
-					trace!("耗时: {}ms", utils::duration_to_milis(&now.elapsed()));
-				}
+				// 		for pos in 0..sub_rects.len(){
+				// 			let sub_rect = &sub_rects[pos];
+				// 			//截取文字图块
+				// 			let sub_clip_rect = Rect::new(
+				// 				sub_rect.left,
+				// 				sub_rect.top,
+				// 				sub_rect.width,
+				// 				sub_rect.height
+				// 			);
+				// 			//debug!("sub_clip_rect={:?}", sub_clip_rect);
+				// 			let ch_clip_buffer = imgtool::get_rect(&clip_buffer, rect.width, &sub_clip_rect, bpp)?;
+				// 			//转换jByteArray
+				// 			let jbarray = env.byte_array_from_slice(&ch_clip_buffer).map_err(mje)?;
+				// 			//添加图片数据
+				// 			env.set_object_array_element(bitmap_bytes_array, pos as i32, JObject::from(jbarray)).map_err(mje)?;
+				// 			env.set_int_array_region(width_array, pos as i32, &[sub_rect.width as i32]).map_err(mje)?;
+				// 			env.set_int_array_region(height_array, pos as i32, &[sub_rect.height as i32]).map_err(mje)?;
+				// 		}
+				// 		//将图片数据发送到java
+				// 		env.call_method(JObject::from(activity_class), "getText", "([[B[I[II)V",
+				// 			&[	JValue::from(JObject::from(bitmap_bytes_array)),//bitmaps
+				// 				JValue::from(JObject::from(width_array)),//width
+				// 				JValue::from(JObject::from(height_array)),//height
+				// 				JValue::from(4)
+				// 			]).map_err(|err|{ format!("{:?}", err) })?;
+				// 	}
+				// 	debug!("耗时: {}ms", utils::duration_to_milis(&now.elapsed()));
+				// }
 				Ok(())
 			})();
 			if rec_result.is_err(){

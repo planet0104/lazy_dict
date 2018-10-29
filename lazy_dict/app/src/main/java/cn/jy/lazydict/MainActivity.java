@@ -213,9 +213,8 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
                         //如果高度小于屏幕高度, 调整高度
                         if(surface_height<screen_height){
                             surface_width = (int)(screen_height*(float)surface_width/(float)surface_height);
-                            surface_height = screen_height;//是去掉虚边
+                            surface_height = screen_height;
                         }
-                        //Log.d(TAG, "renderPreview="+ret[0]+"x"+ret[1]+" surface_height="+surface_height);
                         if(preview_surface.getMeasuredHeight() != surface_height
                                 || preview_surface.getMeasuredWidth() != surface_width){
                             FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) preview_surface.getLayoutParams();
@@ -259,7 +258,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         Arrays.sort(sizes, new CompareSizesByArea());
         Size minSize = sizes[0];
         for (Size s : sizes){
-            if (s.getWidth()<=720&&s.getHeight()<=720){
+            if (s.getWidth()<1200&&s.getHeight()<=1200){
                 minSize = s;
             }
             //Log.d(TAG, "预览大小Size="+s.toString());
@@ -452,7 +451,7 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
         t.start();
     }
 
-    
+
     @Override
     protected void onPause() {
         super.onPause();

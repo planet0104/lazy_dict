@@ -1,17 +1,17 @@
 extern crate image;
 use std::time::{Duration, Instant};
 mod imgtools;
-use image::{Rgb, ImageBuffer};
+use image::{Rgb, Rgba, ImageBuffer};
 extern crate imageproc;
 
 fn main(){
-    let img = image::open("image.jpg").unwrap().to_rgb();
+    let img = image::open("image.jpg").unwrap().to_rgba();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
     let now = Instant::now();
 
-    let bpp = 3;
+    let bpp = 4;
     //计算阈值和像素灰度值
     let (threshold, gray_values) = imgtools::calc_threshold(&pixels, bpp);
     //将原图像二值化
@@ -24,9 +24,9 @@ fn main(){
 
     println!("分割耗时 {}ms", duration_to_milis(&now.elapsed()));
     println!("图片大小: {}x{}", width, height);
-    let mut output:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap();
+    let mut output:ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(width as u32, height as u32, pixels).unwrap();
     for rect in rects{
-        imageproc::drawing::draw_hollow_rect_mut(&mut output, imageproc::rect::Rect::at(rect.left as i32, rect.top as i32).of_size(rect.width as u32, rect.height as u32), Rgb([255u8, 0u8, 0u8]));
+        imageproc::drawing::draw_hollow_rect_mut(&mut output, imageproc::rect::Rect::at(rect.left as i32, rect.top as i32).of_size(rect.width as u32, rect.height as u32), Rgba([255u8, 0u8, 0u8, 120u8]));
     }
     output.save("output.png").unwrap();
 }
