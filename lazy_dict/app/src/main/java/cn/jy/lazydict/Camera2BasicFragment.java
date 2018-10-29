@@ -99,6 +99,7 @@ public class Camera2BasicFragment extends Fragment
     private static final int STATE_WAITING_NON_PRECAPTURE = 3;
     //相机状态：已拍摄照片。
     private static final int STATE_PICTURE_TAKEN = 4;
+
     //Camera2 API保证的最大预览宽度
     private static final int MAX_PREVIEW_WIDTH = 1920;
     //Camera2 API保证的最大预览高度
@@ -131,35 +132,17 @@ public class Camera2BasicFragment extends Fragment
 
     //CameraDevice相机设备ID
     private String mCameraId;
-
-    /**
-     * An {@link TextureView} for camera preview.
-     */
     private TextureView mTextureView;
-
-    /**
-     * A {@link CameraCaptureSession } for camera preview.
-     */
     private CameraCaptureSession mCaptureSession;
-
-    /**
-     * A reference to the opened {@link CameraDevice}.
-     */
     private CameraDevice mCameraDevice;
-
-    /**
-     * The {@link android.util.Size} of camera preview.
-     */
     private Size mPreviewSize;
 
-    /**
-     * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its state.
-     */
+    //CameraDevice状态更改时调用
     private final CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
 
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
-            // This method is called when the camera is opened.  We start camera preview here.
+            // 打开相机时会调用此方法。 我们在这里开始相机预览。
             mCameraOpenCloseLock.release();
             mCameraDevice = cameraDevice;
             createCameraPreviewSession();
@@ -185,38 +168,22 @@ public class Camera2BasicFragment extends Fragment
 
     };
 
-    /**
-     * An additional thread for running tasks that shouldn't block the UI.
-     */
+    //用于运行不应阻止UI的任务的附加线程。
     private HandlerThread mBackgroundThread;
-
-    /**
-     * A {@link Handler} for running tasks in the background.
-     */
+    //在后台线程中运行任务
     private Handler mBackgroundHandler;
-
-    /**
-     * An {@link ImageReader} that handles still image capture.
-     */
+    //处理静态图片捕获
     private ImageReader mImageReader;
-
-    /**
-     * This is the output file for our picture.
-     */
+    //保存图片文件
     private File mFile;
 
-    /**
-     * This a callback object for the {@link ImageReader}. "onImageAvailable" will be called when a
-     * still image is ready to be saved.
-     */
+    //态图片准备好时调用onImageAvailable
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
             = new ImageReader.OnImageAvailableListener() {
-
         @Override
         public void onImageAvailable(ImageReader reader) {
             mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
         }
-
     };
 
     /**
@@ -701,10 +668,8 @@ public class Camera2BasicFragment extends Fragment
     }
 
     /**
-     * Configures the necessary {@link android.graphics.Matrix} transformation to `mTextureView`.
-     * This method should be called after the camera preview size is determined in
-     * setUpCameraOutputs and also the size of `mTextureView` is fixed.
-     *
+     * 配置对TextureView的必要转换。
+     * 在setUpCameraOutputs中确定相机预览大小并且还修复了“mTextureView”的大小后，应调用此方法。
      * @param viewWidth  The width of `mTextureView`
      * @param viewHeight The height of `mTextureView`
      */
@@ -733,22 +698,18 @@ public class Camera2BasicFragment extends Fragment
         mTextureView.setTransform(matrix);
     }
 
-    /**
-     * Initiate a still image capture.
-     */
+    //启动静止图像捕获
     private void takePicture() {
         lockFocus();
     }
 
-    /**
-     * Lock the focus as the first step for a still image capture.
-     */
+    //静态图像捕获的第一步：锁定焦点
     private void lockFocus() {
         try {
-            // This is how to tell the camera to lock focus.
+            //这是告诉相机锁定焦点的方法。
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_START);
-            // Tell #mCaptureCallback to wait for the lock.
+            //告诉#mCaptureCallback等待锁定。
             mState = STATE_WAITING_LOCK;
             mCaptureSession.capture(mPreviewRequestBuilder.build(), mCaptureCallback,
                     mBackgroundHandler);
@@ -834,10 +795,7 @@ public class Camera2BasicFragment extends Fragment
         return (ORIENTATIONS.get(rotation) + mSensorOrientation + 270) % 360;
     }
 
-    /**
-     * Unlock the focus. This method should be called when still image capture sequence is
-     * finished.
-     */
+    //解锁焦点。 当静止图像捕获序列完成时，应该调用此方法。
     private void unlockFocus() {
         try {
             // Reset the auto-focus trigger
@@ -882,25 +840,14 @@ public class Camera2BasicFragment extends Fragment
         }
     }
 
-    /**
-     * Saves a JPEG {@link Image} into the specified {@link File}.
-     */
+    //保存图片文件
     private static class ImageSaver implements Runnable {
-
-        /**
-         * The JPEG image
-         */
         private final Image mImage;
-        /**
-         * The file we save the image into.
-         */
         private final File mFile;
-
         ImageSaver(Image image, File file) {
             mImage = image;
             mFile = file;
         }
-
         @Override
         public void run() {
             ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
@@ -926,27 +873,20 @@ public class Camera2BasicFragment extends Fragment
 
     }
 
-    /**
-     * Compares two {@code Size}s based on their areas.
-     */
+    //根据区域比较两个{@code Size}
     static class CompareSizesByArea implements Comparator<Size> {
-
         @Override
         public int compare(Size lhs, Size rhs) {
-            // We cast here to ensure the multiplications won't overflow
+            //我们在这里投射以确保乘法不会溢出
             return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
                     (long) rhs.getWidth() * rhs.getHeight());
         }
 
     }
 
-    /**
-     * Shows an error message dialog.
-     */
+    //错误信息对话框
     public static class ErrorDialog extends DialogFragment {
-
         private static final String ARG_MESSAGE = "message";
-
         public static ErrorDialog newInstance(String message) {
             ErrorDialog dialog = new ErrorDialog();
             Bundle args = new Bundle();
@@ -972,11 +912,8 @@ public class Camera2BasicFragment extends Fragment
 
     }
 
-    /**
-     * Shows OK/Cancel confirmation dialog about camera permission.
-     */
+    //权限确认对话框
     public static class ConfirmationDialog extends DialogFragment {
-
         @NonNull
         @Override
         public Dialog onCreateDialog(Bundle savedInstanceState) {
