@@ -56,7 +56,7 @@ pub fn unlock_bitmap(env: &jni::JNIEnv, bitmap: jobject){
 }
 
 //锁定bitmap
-pub fn lock_bitmap_argb888<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) -> Result<(), String> where F : FnMut(&AndroidBitmapInfo, &mut [u8]){
+pub fn lock_bitmap<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) -> Result<(), String> where F : FnMut(&AndroidBitmapInfo, &mut [u8]){
 	let mut info = AndroidBitmapInfo{
 		width: 0,
 		height: 0,
@@ -71,12 +71,25 @@ pub fn lock_bitmap_argb888<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut rende
 		return Result::Err(format!("AndroidBitmap_getInfo调用失败! {}", ret));
 	}
 
+	let bpp = match info.format{
+		ANDROID_BITMAP_FORMAT_NONE => 0,
+		ANDROID_BITMAP_FORMAT_RGBA_8888 => 4,
+		ANDROID_BITMAP_FORMAT_RGB_565 => 2,
+		ANDROID_BITMAP_FORMAT_RGBA_4444 => 2,
+		ANDROID_BITMAP_FORMAT_A_8 => 1,
+		_ => 0
+	};
+
+	if bpp == 0{
+		return Result::Err(format!("不支持的位图格式: {}", info.format));
+	}
+
 	let mut pixels = 0 as *mut c_void;
     let ret = unsafe{ AndroidBitmap_lockPixels(jenv, jbitmap, &mut pixels) };
     if ret<0{
       return Result::Err(format!("AndroidBitmap_lockPixels! {}", ret));
     }
-    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height*4) as usize)};
+    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height*bpp) as usize)};
 
 	render(&info, pixels);
 	if unsafe{ AndroidBitmap_unlockPixels(jenv, jbitmap) } != 0{
@@ -86,8 +99,8 @@ pub fn lock_bitmap_argb888<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut rende
 }
 
 //创建bitmap对象
-pub fn create_java_bitmap_argb888<'a>(env: &'a jni::JNIEnv, width: usize, height:usize) -> Result<JObject<'a>, jni::errors::Error>{
+pub fn create_java_bitmap_argb888<'a>(env: &'a jni::JNIEnv, width: i32, height:i32) -> Result<JObject<'a>, jni::errors::Error>{
 	let config = env.call_static_method("android/graphics/Bitmap$Config", "nativeToConfig", "(I)Landroid/graphics/Bitmap$Config;", &[JValue::from(5)])?;
-	let bitmap = env.call_static_method("android/graphics/Bitmap", "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", &[JValue::from(width as jint), JValue::from(height as jint), config])?;
+	let bitmap = env.call_static_method("android/graphics/Bitmap", "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", &[JValue::from(width), JValue::from(height), config])?;
 	Ok(bitmap.l()?)
 }

@@ -108,6 +108,85 @@ pub fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&m
 	}
 }
 
+/*
+//Method from Ketai project! Not mine! See below...
+    void decodeYUV420SP(int[] rgb, byte[] yuv420sp, int width, int height) {
+        final int frameSize = width * height;
+        for (int j = 0, yp = 0; j < height; j++) {       int uvp = frameSize + (j >> 1) * width, u = 0, v = 0;
+            for (int i = 0; i < width; i++, yp++) {
+                int y = (0xff & ((int) yuv420sp[yp])) - 16;
+                if (y < 0)
+                    y = 0;
+                if ((i & 1) == 0) {
+                    v = (0xff & yuv420sp[uvp++]) - 128;
+                    u = (0xff & yuv420sp[uvp++]) - 128;
+                }
+
+                int y1192 = 1192 * y;
+                int r = (y1192 + 1634 * v);
+                int g = (y1192 - 833 * v - 400 * u);
+                int b = (y1192 + 2066 * u);
+
+                if (r < 0)                  r = 0;               else if (r > 262143)
+                    r = 262143;
+                if (g < 0)                  g = 0;               else if (g > 262143)
+                    g = 262143;
+                if (b < 0)                  b = 0;               else if (b > 262143)
+                    b = 262143;
+
+                rgb[yp] = 0xff000000 | ((r << 6) & 0xff0000) | ((g >> 2) & 0xff00) | ((b >> 10) & 0xff);
+            }
+        }
+    }
+ */
+/// android: YUV420SP 转 rgb
+pub fn decode_yuv420sp(rgb:&mut [i32], data:&[u8], width:i32, height:i32){
+    let frame_size = width * height;
+    let mut yp = 0;
+    for j in 0..height{
+        let (mut uvp, mut u, mut v) = ((frame_size + (j >> 1) * width) as usize, 0, 0);
+        for i in 0..width{
+            let mut y = (0xff & data[yp] as i32) - 16;  
+            if y < 0 { y = 0; }
+            if i & 1 == 0{
+                v = (0xff & data[uvp] as i32) - 128;
+                uvp += 1;
+                u = (0xff & data[uvp] as i32) - 128;  
+                uvp += 1;
+            }
+
+            let y1192 = 1192 * y;  
+            let mut r = y1192 + 1634 * v;
+            let mut g = y1192 - 833 * v - 400 * u;
+            let mut b = y1192 + 2066 * u;
+
+            if r < 0 { r=0; } else if r > 262143 { r=262143; };
+            if g < 0 { g = 0; } else if g > 262143 { g = 262143; }
+            if b < 0 { b = 0;} else if b > 262143 { b = 262143; }
+
+            rgb[yp] = 0xff000000u32 as i32 | ((r << 6) & 0xff0000) | ((g >> 2) & 0xff00) | ((b >> 10) & 0xff);
+            yp += 1;
+        }
+    }
+}
+
+//colors顺时针旋转90度
+pub fn rotate90_colors(src_buffer: &[u8], new_buffer:&mut [u8], src_width: usize, src_height:usize) -> (usize, usize){
+    let (new_width, new_height) = (src_height, src_width);
+    for (y, row) in src_buffer.chunks(src_width*3).enumerate(){
+        //tx = src_height-y-1;
+        //ty = sx;
+        let n = (src_height-y-1)*3;
+        for (x, pixel) in row.chunks(3).enumerate(){
+            let p = x*new_width*3+n;
+            new_buffer[p] = pixel[0];
+            new_buffer[p+1] = pixel[1];
+            new_buffer[p+2] = pixel[2];
+        }
+    }
+    (new_width, new_height)
+}
+
 //RGB顺时针旋转90度
 pub fn rotate90(src_buffer: &[u8], new_buffer:&mut [u8], src_width: usize, src_height:usize) -> (usize, usize){
     let (new_width, new_height) = (src_height, src_width);
@@ -698,3 +777,49 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
     }
     new_infos
 }
+
+
+/*
+//RGB565 转 Bitmap
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_RustApp_convertRGB565<'a>(env: JNIEnv, _activity: JClass, data: jni::sys::jbyteArray, width:jint, height:jint) -> jni::sys::jintArray{
+
+	let data = env.convert_byte_array(data).unwrap();
+	debug!("width={}, height={}, data.len()={}", width, height, data.len());
+
+	let data: &[u16] = unsafe {
+		std::slice::from_raw_parts(
+			data.as_ptr() as *const u16,
+			data.len()/2,
+		)
+	};
+	
+	let mut colors = vec![0i32; (width*height) as usize];
+
+	for i in 0..data.len(){
+		/*
+			1,
+            UInt32 r = (rgb565 & 0xF800) >> 11;
+            UInt32 g = (rgb565 & 0x07E0) >> 5;  
+            UInt32 b = rgb565 & 0x001F;
+
+            2,
+            r = r << 3 | r >> 2;
+            g = g << 2 | g >> 4;
+            b = b << 3 | b >> 2;
+		 */
+		let r = (data[i] as u32 & 0xF800) >> 11;
+        let g = (data[i] as u32 & 0x07E0) >> 5;
+        let b = data[i] as u32 & 0x001F;
+		let r = r<<3|r>>2;
+		let g = g<<2|g>>4;
+		let b = b<<3|b>>2;
+		colors[i] = (255<<24|r<<16|g<<8|b) as i32;
+	}
+
+	let intarray = env.new_int_array(width*height).unwrap();
+	env.set_int_array_region(intarray, 0, &colors).unwrap();
+
+	intarray
+}
+ */

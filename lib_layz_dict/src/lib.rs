@@ -260,6 +260,39 @@ fn render(app: &mut Application, result:&mut [i32;2], env: &JNIEnv, activity_cla
 	})
 }
 
+//根据坐标选择一个文字块
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_RustApp_addCharacter<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject, x:jint, y:jint) -> jni::sys::jintArray{
+	let mut block = None;
+	let ret = jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
+		let stride = info.stride;
+		let format = info.format;
+
+		block = Some(env.new_int_array(0).unwrap());
+	});
+	if ret.is_err() || block.is_none(){
+		error!("文字块截取失败: {:?}", ret);
+		env.new_int_array(0).unwrap()
+	}else{
+		block.unwrap()
+	}
+}
+
+//YUV420SP转colors
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_RustApp_decodeYUV420SP<'a>(env: JNIEnv, _activity: JClass, data: jni::sys::jbyteArray, width:jint, height:jint, camera_orientation: jint) -> jni::sys::jintArray{
+	let data = env.convert_byte_array(data).unwrap();
+	let mut colors = vec![0i32; (width*height) as usize];
+
+	//根据相机角度旋转图片
+            Log.d(TAG, "info.orientation="+info.orientation);
+
+	imgtool::decode_yuv420sp(&mut colors, &data, width, height);
+	let intarray = env.new_int_array(width*height).unwrap();
+	env.set_int_array_region(intarray, 0, &colors).unwrap();
+	intarray
+}
+
 //预览图片
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_MainActivity_renderPreview<'a>(env: JNIEnv, activity_class: JClass, y: jni::objects::JByteBuffer, u: jni::objects::JByteBuffer, v:jni::objects::JByteBuffer, raw_width:jint, raw_height:jint, y_row_stride: jint, uv_row_stride:jint, uv_pixel_stride:jint, sensor_orientation: jint) -> jni::sys::jintArray{
