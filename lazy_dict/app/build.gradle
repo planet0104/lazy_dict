@@ -24,4 +24,5 @@ dependencies {
     implementation 'com.rmtheis:tess-two:9.0.0'
     testImplementation 'junit:junit:4.12'
     implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.15'
+    implementation 'com.huaban:jieba-analysis:1.0.2'
 }

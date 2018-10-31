@@ -11,9 +11,7 @@ jni = { version = "*", default-features = false }
 android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
-bytes = "0.4.10"
 rayon = "1.0.2"
-jieba-rs = "0.2"
 
 [lib]
 crate-type = ["cdylib"]
