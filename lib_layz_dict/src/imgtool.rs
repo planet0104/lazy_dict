@@ -160,7 +160,7 @@ pub fn decode_yuv420sp(rgb:&mut [i32], data:&[u8], width:i32, height:i32){
             let mut g = y1192 - 833 * v - 400 * u;
             let mut b = y1192 + 2066 * u;
 
-            if r < 0 { r=0; } else if r > 262143 { r=262143; };
+            if r < 0 { r = 0; } else if r > 262143 { r = 262143; };
             if g < 0 { g = 0; } else if g > 262143 { g = 262143; }
             if b < 0 { b = 0;} else if b > 262143 { b = 262143; }
 
@@ -170,21 +170,46 @@ pub fn decode_yuv420sp(rgb:&mut [i32], data:&[u8], width:i32, height:i32){
     }
 }
 
-//colors顺时针旋转90度
-pub fn rotate90_colors(src_buffer: &[u8], new_buffer:&mut [u8], src_width: usize, src_height:usize) -> (usize, usize){
+//顺时针旋转90度
+pub fn rotate90_colors(src_buffer: &[i32], new_buffer:&mut [i32], src_width: i32, src_height:i32) -> (i32, i32){
+    let (src_width, src_height) = (src_width as usize, src_height as usize);
     let (new_width, new_height) = (src_height, src_width);
-    for (y, row) in src_buffer.chunks(src_width*3).enumerate(){
-        //tx = src_height-y-1;
+    for (sy, row) in src_buffer.chunks(src_width).enumerate(){
+        //tx = src_height-sy-1;
         //ty = sx;
-        let n = (src_height-y-1)*3;
-        for (x, pixel) in row.chunks(3).enumerate(){
-            let p = x*new_width*3+n;
-            new_buffer[p] = pixel[0];
-            new_buffer[p+1] = pixel[1];
-            new_buffer[p+2] = pixel[2];
+        let tx = src_height-sy-1;
+        for sx in 0..row.len(){
+            new_buffer[sx*new_width+tx] = row[sx];
         }
     }
-    (new_width, new_height)
+    (new_width as i32, new_height as i32)
+}
+
+//顺时针旋转180度
+pub fn rotate180_colors(src_buffer:&[i32], new_buffer:&mut [i32], width: i32, height: i32) -> (i32, i32){
+    let (width, height) = (width as usize, height as usize);
+    let mut p = src_buffer.len()-1;
+    for row in src_buffer.chunks(width){
+        for pixel in 0..row.len(){
+            new_buffer[p] = row[pixel];
+            p -= 1;
+        }
+    }
+    (width as i32, height as i32)
+}
+
+//顺时针旋转270度
+pub fn rotate270_colors(src_buffer: &[i32], new_buffer:&mut [i32], src_width: i32, src_height:i32) -> (i32, i32){
+    let (src_width, src_height) = (src_width as usize, src_height as usize);
+    let (new_width, new_height) = (src_height, src_width);
+    for (y, row) in src_buffer.chunks(src_width).enumerate(){//每一行
+        let j = y;
+        for x in 0..row.len(){//每一列
+            let p = (src_width-x-1)*new_width+j;
+            new_buffer[p] = row[x];
+        }
+    }
+    (new_width as i32, new_height as i32)
 }
 
 //RGB顺时针旋转90度
@@ -358,10 +383,10 @@ pub fn get_argb_rect_rgb<'a>(buffer: &[u8], width: usize, rect:&Rect) -> Result<
     }
 }
 
-//获取rgb图片区域
-pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect, pixel_size: usize) -> Result<Vec<u8>, &'a str>{
+/// 获取图片区域
+pub fn get_rect<'a>(buffer: &[u8], bpp:usize, stride:u32, rect:&Rect) -> Result<Vec<u8>, &'a str>{
+    let stride = stride as usize;
     let mut result = vec![];
-    let stride = width*pixel_size;
     //先取匹配裁剪区的所有行
     let start = stride*(rect.top-1);
     let end = start + stride*rect.height;
@@ -369,9 +394,9 @@ pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect, pixel_size: usize) 
         Some(lines) => {
             for row in lines.chunks(stride){//每一行
                 //复制每一行的裁剪区域
-                match row.get((rect.left-1)*pixel_size..(rect.left-1)*pixel_size+rect.width*pixel_size){
+                match row.get((rect.left-1)*bpp..(rect.left-1)*bpp+rect.width*bpp){
                     Some(chunk) =>{
-                        if chunk.len() == rect.width*pixel_size{
+                        if chunk.len() == rect.width*bpp{
                             result.extend_from_slice(chunk);
                         }else{
                             return Err("get_rect失败 01!");
@@ -384,7 +409,7 @@ pub fn get_rect<'a>(buffer: &[u8], width: usize, rect:&Rect, pixel_size: usize) 
         None => return Err("get_rect失败 03!")
     }
 
-    if result.len() != rect.width*rect.height*pixel_size{
+    if result.len() != rect.width*rect.height*bpp{
         return Err("get_rect失败 04!")
     }else{
         Ok(result)

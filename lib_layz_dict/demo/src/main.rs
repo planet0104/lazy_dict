@@ -5,7 +5,7 @@ use image::{Rgb, Rgba, ImageBuffer};
 extern crate imageproc;
 
 fn main(){
-    let img = image::open("image.jpg").unwrap().to_rgba();
+    let img = image::open("image2.jpg").unwrap().to_rgba();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
@@ -19,6 +19,23 @@ fn main(){
     //边缘检测
     let mut edges = vec![1; width*height]; //1为背景, 0为边缘
     imgtools::edge_detect_gray(&gray_values, &mut edges, width, threshold);
+
+    //保存边缘图
+    let mut bimg:ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::new(width as u32, height as u32);
+    let mut i = 0;
+    for y in 0..height{
+        for x in 0..width{
+            if edges[i] == 0{
+                bimg.put_pixel(x as u32, y as u32, Rgb([255u8, 0u8, 0u8]));
+            }
+            i += 1;
+        }
+    }
+    let _ = bimg.save("edge.png");
+
+    // (170,102)
+    
+
     //根据edges分割
     let rects = imgtools::split(0, 0, &mut edges, width, height);
 

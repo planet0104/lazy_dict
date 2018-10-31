@@ -56,7 +56,7 @@ pub fn unlock_bitmap(env: &jni::JNIEnv, bitmap: jobject){
 }
 
 //锁定bitmap
-pub fn lock_bitmap<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) -> Result<(), String> where F : FnMut(&AndroidBitmapInfo, &mut [u8]){
+pub fn lock_bitmap<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) -> Result<(), String> where F : FnMut(&AndroidBitmapInfo, &mut [u8])->Result<(), String>{
 	let mut info = AndroidBitmapInfo{
 		width: 0,
 		height: 0,
@@ -91,7 +91,7 @@ pub fn lock_bitmap<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) ->
     }
     let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height*bpp) as usize)};
 
-	render(&info, pixels);
+	render(&info, pixels)?;
 	if unsafe{ AndroidBitmap_unlockPixels(jenv, jbitmap) } != 0{
 		error!("ANativeWindow_unlockAndPost 调用失败!");
 	}
@@ -103,4 +103,41 @@ pub fn create_java_bitmap_argb888<'a>(env: &'a jni::JNIEnv, width: i32, height:i
 	let config = env.call_static_method("android/graphics/Bitmap$Config", "nativeToConfig", "(I)Landroid/graphics/Bitmap$Config;", &[JValue::from(5)])?;
 	let bitmap = env.call_static_method("android/graphics/Bitmap", "createBitmap", "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;", &[JValue::from(width), JValue::from(height), config])?;
 	Ok(bitmap.l()?)
+}
+
+/// 创建bitmap对象
+pub fn create_java_bitmap_form_colors<'a>(env: &'a jni::JNIEnv, colors:jni::sys::jintArray, offset:i32, stride:i32, width: i32, height:i32) -> Result<JObject<'a>, jni::errors::Error>{
+	let config = env.call_static_method("android/graphics/Bitmap$Config", "nativeToConfig", "(I)Landroid/graphics/Bitmap$Config;", &[JValue::from(5)])?;
+	let bitmap = env.call_static_method("android/graphics/Bitmap", "createBitmap", "([IIIIILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;",
+		&[
+			JValue::from(JObject::from(colors)),
+			JValue::from(offset),
+			JValue::from(stride),
+			JValue::from(width),
+			JValue::from(height),
+			config
+		])?;
+	Ok(bitmap.l()?)
+}
+
+/// 创建Randroid.graphics.Rect
+pub fn new_rect<'a>(env: &'a jni::JNIEnv, left: i32, top:i32, right:i32, bottom:i32) -> Result<JObject<'a>, jni::errors::Error>{
+	env.new_object("android/graphics/Rect", "(IIII)V",
+		&[
+			JValue::from(left),
+			JValue::from(top),
+			JValue::from(right),
+			JValue::from(bottom)
+		])
+}
+
+/// 创建Randroid.graphics.RectF
+pub fn new_rectf<'a>(env: &'a jni::JNIEnv, left: f32, top:f32, right:f32, bottom:f32) -> Result<JObject<'a>, jni::errors::Error>{
+	env.new_object("android/graphics/RectF", "(FFFF)V",
+		&[
+			JValue::from(left),
+			JValue::from(top),
+			JValue::from(right),
+			JValue::from(bottom)
+		])
 }
