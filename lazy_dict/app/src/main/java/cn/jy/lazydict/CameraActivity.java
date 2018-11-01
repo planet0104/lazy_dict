@@ -2,12 +2,17 @@ package cn.jy.lazydict;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.RectF;
 import android.hardware.Camera;
 import android.os.Bundle;
@@ -27,6 +32,7 @@ import java.util.List;
 
 public class CameraActivity extends Activity{
     static final String TAG = CameraActivity.class.getSimpleName();
+    ImageView iv_test;
 
     //--------- 预览相关 ------------
     FrameLayout fl_preview;
@@ -41,23 +47,27 @@ public class CameraActivity extends Activity{
     ImageButton btn_preview;
 
     //所有用户选择的Rect
-    List<RectF> allRects = new ArrayList<>();
+    List<RectF> allRect = new ArrayList<>();
     Bitmap mask;
     Bitmap capture;
+    Bitmap drawCache;
+    ThresholdGray tg;
     Camera camera;
     byte[] previewFrame = null;
+    boolean isPreview = true;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
-
+        iv_test = findViewById(R.id.iv_test);
         iv_capture = findViewById(R.id.iv_capture);
         iv_mask = findViewById(R.id.iv_mask);
         fl_capture = findViewById(R.id.fl_capture);
         iv_capture.setDrawingCacheEnabled(true);
 
+        fl_preview = findViewById(R.id.fl_preview);
         btn_capture = findViewById(R.id.btn_capture);
         btn_preview = findViewById(R.id.btn_preview);
         surface_view = findViewById(R.id.surface_view);
@@ -73,6 +83,25 @@ public class CameraActivity extends Activity{
             @Override
             public void onClick(View v) {
                 if(camera == null) initCamera();
+            }
+        });
+
+        surface_view.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                CameraUtils.focusOnTouch(camera, surface_view, (int)event.getX(), (int)event.getY(), new Camera.AutoFocusCallback() {
+                    @Override
+                    public void onAutoFocus(boolean success, Camera c) {
+                        //重新开始自动对焦
+                        surface_view.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                CameraUtils.setContinuallyAutoFocus(camera);
+                            }
+                        }, 1000);
+                    }
+                });
+                return false;
             }
         });
 
@@ -94,8 +123,12 @@ public class CameraActivity extends Activity{
      */
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
+        allRect.clear();
+        drawCache = null;
+        capture = null;
         fl_capture.setVisibility(View.GONE);
         fl_preview.setVisibility(View.VISIBLE);
+        isPreview = true;
     }
 
     /**
@@ -105,6 +138,7 @@ public class CameraActivity extends Activity{
         Log.d(TAG, "changeStateCapture");
         fl_capture.setVisibility(View.VISIBLE);
         fl_preview.setVisibility(View.GONE);
+        isPreview = false;
     }
 
     private void capture(){
@@ -124,7 +158,7 @@ public class CameraActivity extends Activity{
                 changeStateCapture();//切换到截图状态
             } catch (Exception e) {
                 e.printStackTrace();
-                toast(this, e.getMessage());
+                showMessageDialog(e.getMessage(), false);
             }
         }
     }
@@ -166,6 +200,8 @@ public class CameraActivity extends Activity{
                 camera.startPreview();
             }catch (Exception e) {
                 releaseCamera();
+                e.printStackTrace();
+                showMessageDialog(e.getMessage(), true);
             }
         }
     }
@@ -179,11 +215,10 @@ public class CameraActivity extends Activity{
     @Override
     protected void onResume() {
         super.onResume();
-        //使用post, 解决Camera: app passed NULL surface
         surface_view.post(new Runnable() {
             @Override
             public void run() {
-                if(camera==null && iv_capture.getVisibility()==View.GONE){
+                if(camera==null && isPreview){
                     initCamera();
                 }
             }
@@ -195,43 +230,79 @@ public class CameraActivity extends Activity{
     }
 
     private void addRect(float x, float y){
-        Bitmap bitmap = iv_capture.getDrawingCache();
         try {
             long t = System.currentTimeMillis();
-            RectF rect = Toolkit.getCharacterRect(bitmap, (int)x, (int)y);
-            Log.d(TAG, "x="+x+" y="+y+" bitmap.width="+bitmap.getWidth()+" rect="+rect.toShortString()+" 耗时:"+(System.currentTimeMillis()-t)+"ms");
+            if(drawCache == null){
+                drawCache =iv_capture.getDrawingCache();
+                Log.d(TAG, "开始调用calcThreshold...");
+                tg = Toolkit.calcThreshold(drawCache);
+                Log.d(TAG, "calcThreshold调用完毕...");
+            }
+            int[] colors = new int[drawCache.getWidth()*drawCache.getHeight()];
+            for(int i=0; i<tg.grays.length; i++){
+                colors[i] = Color.argb(255, 0xFF&tg.grays[i], 0xFF&tg.grays[i], 0xFF&tg.grays[i]);
+                //Log.d(TAG, "tg.grays[i]="+(0xFF&tg.grays[i]));
+                //colors[i] = Color.RED;
+            }
+            Bitmap b = Bitmap.createBitmap(colors, 0, drawCache.getWidth(), drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
+            iv_test.setImageBitmap(b);
+            RectF rect = Toolkit.getCharacterRect(tg, (int)x, (int)y);
+            Log.d(TAG, "x="+x+" y="+y+" bitmap.width="+drawCache.getWidth()+" rect="+rect.toShortString()+" 耗时:"+(System.currentTimeMillis()-t)+"ms");
 
             //已经存在不再添加
-            for(RectF ur: allRects){
+            for(RectF ur: allRect){
                 if(ur.left == rect.left && ur.top == rect.top && ur.right == rect.right && ur.bottom == rect.bottom){
                     toast(this, "已经添加!");
                     return;
                 }
             }
 
-            allRects.add(rect);
+            allRect.add(rect);
 
             if(mask == null){
-                mask = Bitmap.createBitmap(bitmap.getWidth(), bitmap.getHeight(), Bitmap.Config.ARGB_8888);
+                mask = Bitmap.createBitmap(drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
             }
 
             Canvas canvas = new Canvas(mask);
+            //清空画布
             Paint paint = new Paint();
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(Toolkit.dip2px(this,5));
+            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+            canvas.drawPaint(paint);
 
-            for(RectF ur: allRects){
+            //先绘制红色半透明
+            paint = new Paint();
+            paint.setStyle(Paint.Style.STROKE);
+            int strokeWidth = Toolkit.dip2px(this,3);
+            paint.setStrokeWidth(strokeWidth);
+
+            for(RectF ur: allRect){
                 paint.setPathEffect(null);
                 paint.setColor(0x7fff0000);
-                canvas.drawRoundRect(rect, Toolkit.dip2px(this,5), Toolkit.dip2px(this,5), paint);
+                canvas.drawRoundRect(ur, strokeWidth, strokeWidth, paint);
                 paint.setColor(0x7fffffff);
-                paint.setPathEffect(new DashPathEffect(new float[]{Toolkit.dip2px(this,10), Toolkit.dip2px(this,10)}, 0));
-                canvas.drawRoundRect(ur, Toolkit.dip2px(this,5), Toolkit.dip2px(this,5), paint);
+                paint.setPathEffect(new DashPathEffect(new float[]{strokeWidth*2, strokeWidth*2}, 0));
+                canvas.drawRoundRect(ur, strokeWidth, strokeWidth, paint);
             }
             iv_mask.setImageBitmap(mask);
         } catch (Exception e) {
             e.printStackTrace();
-            CameraActivity.toast(this, e.getMessage());
+            showMessageDialog(e.getMessage(), false);
         }
+    }
+
+    private void showMessageDialog(String errorMsg, final boolean isError){
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setMessage(errorMsg);
+        builder.setTitle("程序错误");
+        builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+                if(isError)
+                finish();
+            }
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 }

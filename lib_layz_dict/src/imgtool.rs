@@ -383,6 +383,40 @@ pub fn get_argb_rect_rgb<'a>(buffer: &[u8], width: usize, rect:&Rect) -> Result<
     }
 }
 
+/// 获取灰度图区域
+pub fn get_gray_rect<'a>(buffer: &[u8], width:i32, rect:&Rect) -> Result<Vec<u8>, &'a str>{
+    let width = width as usize;
+    let mut result = vec![];
+    //先取匹配裁剪区的所有行
+    let start = width*(rect.top-1);
+    let end = start + width*rect.height;
+    match buffer.get(start..end){
+        Some(lines) => {
+            for row in lines.chunks(width){//每一行
+                //复制每一行的裁剪区域
+                match row.get(rect.left-1..rect.left-1+rect.width){
+                    Some(chunk) =>{
+                        if chunk.len() == rect.width{
+                            //debug!("chunk={:?}", chunk);
+                            result.extend_from_slice(chunk);
+                        }else{
+                            return Err("get_rect失败 01!");
+                        }
+                    }
+                    None => return Err("get_rect失败 02!")
+                }
+            }
+        },
+        None => return Err("get_rect失败 03!")
+    }
+
+    if result.len() != rect.width*rect.height{
+        return Err("get_rect失败 04!")
+    }else{
+        Ok(result)
+    }
+}
+
 /// 获取图片区域
 pub fn get_rect<'a>(buffer: &[u8], bpp:usize, stride:u32, rect:&Rect) -> Result<Vec<u8>, &'a str>{
     let stride = stride as usize;
@@ -422,23 +456,31 @@ pub fn get_rect<'a>(buffer: &[u8], bpp:usize, stride:u32, rect:&Rect) -> Result<
 ///
 /// # Params
 /// - `pixels`: 图像数据
-/// - `bpp`: 每个像素占用字节 
+/// - `width`: 图片宽度
+/// - `height`: 图片高度
+/// - `stride`: 行跨度
+/// - `bpp`: 每个像素占用字节(3或4 即 RGB/RGBA)
 /// 
 /// # Return
 /// - (u8, Vec<u8>) (阈值, 每个像素对应灰度)
-pub fn calc_threshold(pixels: &[u8], bpp: usize) -> (u8, Vec<u8>){
+pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bpp: usize) -> (u8, Vec<u8>){
     //统计灰度直方图数据
     let mut gray_count = vec![0; 256];
     let mut gray_sum = 0;
-    let pixel_count = pixels.len()/bpp;//总像素数
+    let pixel_count = width*height;//总像素数
     let mut gray_values = vec![0u8; pixel_count];
     //循环每个像素统计灰度总和和灰度平均值
-    for (i, pixel) in pixels.chunks(bpp).enumerate(){
-        let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
-        gray_count[gray] += 1;
-        gray_sum += gray;
-        gray_values[i] = gray as u8;
+    let mut i = 0;
+    for row in pixels.chunks(stride*bpp){
+        for pixel in row.get(0..width*bpp).unwrap().chunks(bpp){
+            let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
+            gray_count[gray] += 1;
+            gray_sum += gray;
+            gray_values[i] = gray as u8;    
+            i += 1;
+        }
     }
+    debug!("gray_count={:?}", gray_count);
 
     // (1) 计算图像灰度平均值、标准偏差(标准差)sigma
     let avg = (gray_sum as f32/pixel_count as f32) as i32;//计算灰度平均值
