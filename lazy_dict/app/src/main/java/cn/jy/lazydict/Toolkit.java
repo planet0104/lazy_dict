@@ -24,13 +24,23 @@ public class Toolkit {
 
     /**
      * 根据坐标选择一个文字块
+     * @param tg
+     * @param x
+     * @param y
+     * @return
+     * @throws Exception
+     */
+    public static native RectF getCharacterRect(ThresholdGray tg, int x, int y) throws Exception;
+
+    /**
+     * 计算阈值和灰度图
      * @param bitmap
      * @param x
      * @param y
      * @return
      * @throws Exception
      */
-    public static native RectF getCharacterRect(Bitmap bitmap, int x, int y) throws Exception;
+    public static native ThresholdGray calcThreshold(Bitmap bitmap) throws Exception;
 
     /**
      * 分组

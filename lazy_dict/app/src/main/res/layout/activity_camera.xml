@@ -45,4 +45,9 @@
             android:layout_gravity="bottom|center_horizontal"
             android:layout_height="wrap_content" />
     </FrameLayout>
+    <ImageView
+        android:id="@+id/iv_test"
+        android:scaleType="centerInside"
+        android:layout_width="100dp"
+        android:layout_height="100dp" />
 </FrameLayout>

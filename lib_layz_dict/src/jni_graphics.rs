@@ -3,16 +3,16 @@
 #![allow(non_camel_case_types)]
 
 use std::os::raw::{c_int, c_void, c_uint};
-use jni::sys::{JNIEnv, jint, jobject};
+use jni::sys::{JNIEnv, jobject};
 use jni;
 use jni::objects::{JObject, JValue};
 //Bitmap作为
 
-const ANDROID_BITMAP_FORMAT_NONE:i32 = 0;
-const ANDROID_BITMAP_FORMAT_RGBA_8888:i32 = 1;
-const ANDROID_BITMAP_FORMAT_RGB_565:i32   = 4;
-const ANDROID_BITMAP_FORMAT_RGBA_4444:i32 = 7;
-const ANDROID_BITMAP_FORMAT_A_8:i32       = 8;
+pub const ANDROID_BITMAP_FORMAT_NONE:i32 = 0;
+pub const ANDROID_BITMAP_FORMAT_RGBA_8888:i32 = 1;
+pub const ANDROID_BITMAP_FORMAT_RGB_565:i32   = 4;
+pub const ANDROID_BITMAP_FORMAT_RGBA_4444:i32 = 7;
+pub const ANDROID_BITMAP_FORMAT_A_8:i32       = 8;
 
 pub fn get_format_name(format: i32) -> String{
 	String::from(match format{

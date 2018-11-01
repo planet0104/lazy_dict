@@ -5,7 +5,7 @@ use image::{Rgb, Rgba, ImageBuffer};
 extern crate imageproc;
 
 fn main(){
-    let img = image::open("image2.jpg").unwrap().to_rgba();
+    let img = image::open("img3.jpg").unwrap().to_rgba();
     let (width, height) = (img.width() as usize, img.height() as usize);
     let mut pixels = img.into_raw();
 
@@ -15,7 +15,7 @@ fn main(){
     //计算阈值和像素灰度值
     let (threshold, gray_values) = imgtools::calc_threshold(&pixels, bpp);
     //将原图像二值化
-    imgtools::binary(&gray_values, &mut pixels, bpp, threshold);
+    imgtools::binary(&gray_values, &mut pixels, bpp, 72);
     //边缘检测
     let mut edges = vec![1; width*height]; //1为背景, 0为边缘
     imgtools::edge_detect_gray(&gray_values, &mut edges, width, threshold);
