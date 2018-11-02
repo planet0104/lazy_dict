@@ -39,6 +39,31 @@ pub extern fn JNI_OnLoad(_vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> 
 	jni::sys::JNI_VERSION_1_6
 }
 
+//二值化
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject){
+	let result = (||->Result<(), String> {
+		jni_graphics::lock_bitmap(&env, &bitmap, |info, mut pixels|{
+			//只支持argb888格式
+			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
+				Err("图片格式只支持RGBA_8888!".to_string())
+			}else{
+				//计算整张图的阈值
+				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
+				imgtool::binary(&gray_values, &mut pixels, info.stride as usize, info.width as usize*4, 4, threshold);
+				Ok(())
+			}
+		})?;
+		Ok(())
+	})();
+
+	if result.is_err(){
+		let err = result.err();
+		error!("{:?}", &err);
+		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
+	}
+}
+
 //计算图片阈值，并返回像素灰度数组
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject) -> jni::sys::jobject{
@@ -46,7 +71,6 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 	let mut obj = None;
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
-			debug!("info={:?} pixels.len()={}", info, pixels.len());
 			//只支持argb888格式
 			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
 				Err("图片格式只支持RGBA_8888!".to_string())
@@ -100,20 +124,14 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _act
 		for chs in &all_gray_values{
 			gray_count[*chs as usize] += 1;
 		}
-		debug!("getCharacterRect gray_count={:?}", gray_count);
 
 		//选择 160x160的一块图像进行二值化
 		let rect = Rect::new(x as usize-80, y as usize-80, 160, 160);
-		debug!("截取区域{:?}", rect);
-		// for chs in all_gray_values.chunks(width as usize){
-		// 	debug!("{:?}", chs);
-		// }
 		let gray_values = imgtool::get_gray_rect(&all_gray_values, width, &rect)?;
 		let mut gray_count = vec![0; 256];
 		for chs in &gray_values{
 			gray_count[*chs as usize] += 1;
 		}
-		debug!("截取以后的gray_count={:?}", gray_count);
 		//边缘检测
 		let mut edges = vec![1; rect.width*rect.height]; //1为背景, 0为边缘
 		imgtool::edge_detect_gray(&gray_values, &mut edges, rect.width, threshold);

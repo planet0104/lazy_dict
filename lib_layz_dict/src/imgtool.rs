@@ -397,7 +397,6 @@ pub fn get_gray_rect<'a>(buffer: &[u8], width:i32, rect:&Rect) -> Result<Vec<u8>
                 match row.get(rect.left-1..rect.left-1+rect.width){
                     Some(chunk) =>{
                         if chunk.len() == rect.width{
-                            //debug!("chunk={:?}", chunk);
                             result.extend_from_slice(chunk);
                         }else{
                             return Err("get_rect失败 01!");
@@ -471,7 +470,7 @@ pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bp
     let mut gray_values = vec![0u8; pixel_count];
     //循环每个像素统计灰度总和和灰度平均值
     let mut i = 0;
-    for row in pixels.chunks(stride*bpp){
+    for row in pixels.chunks(stride){
         for pixel in row.get(0..width*bpp).unwrap().chunks(bpp){
             let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
             gray_count[gray] += 1;
@@ -480,7 +479,6 @@ pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bp
             i += 1;
         }
     }
-    debug!("gray_count={:?}", gray_count);
 
     // (1) 计算图像灰度平均值、标准偏差(标准差)sigma
     let avg = (gray_sum as f32/pixel_count as f32) as i32;//计算灰度平均值
@@ -560,19 +558,25 @@ pub fn edge_detect_gray(gray_values:&[u8], output:&mut [u16], width: usize, thre
 ///
 /// - `gray_values`: 每个像素对应的灰度值
 /// - `out`: 输出RGB/RGBA(背景为白色，前景为黑色)
+/// - `stride`: 行跨度(字节)
+/// - `bpl`: 每行像素占用字节
 /// - `bpp`: 每个像素占用字节
 /// - `thresholds`: 阈值
-pub fn binary(gray_values:&[u8], out:&mut [u8], bpp: usize, threshold:u8){
-    for (i, pixel) in out.chunks_mut(bpp).enumerate(){
-        if gray_values[i] >= threshold{
-            pixel[0] = 0;
-            pixel[1] = 0;
-            pixel[2] = 0;
-        }else{
-            pixel[0] = 255;
-            pixel[1] = 255;
-            pixel[2] = 255;
-        };
+pub fn binary(gray_values:&[u8], out:&mut [u8], stride:usize, bpl: usize, bpp: usize, threshold:u8){
+    let mut i = 0;
+    for row in out.chunks_mut(stride){
+        for pixel in row.get_mut(0..bpl).unwrap().chunks_mut(bpp){
+            if gray_values[i] >= threshold{
+                pixel[0] = 0;
+                pixel[1] = 0;
+                pixel[2] = 0;
+            }else{
+                pixel[0] = 255;
+                pixel[1] = 255;
+                pixel[2] = 255;
+            };
+            i += 1;
+        }
     }
 }
 

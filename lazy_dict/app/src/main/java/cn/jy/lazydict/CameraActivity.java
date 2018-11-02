@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
@@ -27,6 +26,10 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.googlecode.tesseract.android.TessBaseAPI;
+
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,6 +58,8 @@ public class CameraActivity extends Activity{
     Camera camera;
     byte[] previewFrame = null;
     boolean isPreview = true;
+
+    static TessBaseAPI tessBaseAPI;
 
     @SuppressLint("ClickableViewAccessibility")
     @Override
@@ -123,8 +128,11 @@ public class CameraActivity extends Activity{
      */
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
+        //清空数据
+        iv_mask.setImageBitmap(null);
         allRect.clear();
         drawCache = null;
+        iv_capture.destroyDrawingCache();
         capture = null;
         fl_capture.setVisibility(View.GONE);
         fl_preview.setVisibility(View.VISIBLE);
@@ -152,10 +160,20 @@ public class CameraActivity extends Activity{
             long t = System.currentTimeMillis();
             try {
                 capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
+                Toolkit.binary(capture);
                 iv_capture.setImageBitmap(capture);
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
                 changeStateCapture();//切换到截图状态
+
+
+                //识别
+                t = System.currentTimeMillis();
+                tessBaseAPI.setPageSegMode();
+                tessBaseAPI.setImage(capture);
+                final String text = tessBaseAPI.getUTF8Text();
+                Log.d(TAG, "识别文字耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+text);
+
             } catch (Exception e) {
                 e.printStackTrace();
                 showMessageDialog(e.getMessage(), false);
@@ -175,6 +193,56 @@ public class CameraActivity extends Activity{
             camera.release();
             camera = null;
         }
+    }
+
+    private void init_tess_two(){
+        //将tessdata文件夹解压到files文件夹
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                boolean success = false;
+                try {
+                    File tessDataDir = new File(getFilesDir(), "tessdata");
+                    if(!tessDataDir.exists()){
+                        if(FileUtils.unpackZip(getAssets().open("tessdata.zip"), getFilesDir(), null)){
+                            Log.d(TAG, "tessdata解压成功");
+                            success = true;
+                        }else{
+                            Log.e(TAG, "tessdata解压失败");
+                        }
+                    }else{
+                        success = true;
+                        Log.e(TAG, "tessdata已经存在");
+                    }
+                } catch (IOException e) {
+                    Log.e(TAG, "tessdata文件夹读取失败!");
+                    e.printStackTrace();
+                }
+                if(success){
+                    //初始化 TessBaseAPI
+                    boolean tessInit;
+                    if(tessBaseAPI == null){
+                        tessBaseAPI = new TessBaseAPI();
+                        Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
+                        tessInit = tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");
+                    }else{
+                        tessInit = true;
+                    }
+                    final boolean tessInitFinal = tessInit;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if(tessInitFinal){
+                                //启动相机
+                                initCamera();
+                            }else{
+                                Log.e(TAG, "Tess初始化失败!");
+                            }
+                        }
+                    });
+                }
+            }
+        }).start();
     }
 
     /**
@@ -219,7 +287,8 @@ public class CameraActivity extends Activity{
             @Override
             public void run() {
                 if(camera==null && isPreview){
-                    initCamera();
+                    //initCamera();
+                    init_tess_two();
                 }
             }
         });
@@ -236,16 +305,16 @@ public class CameraActivity extends Activity{
                 drawCache =iv_capture.getDrawingCache();
                 Log.d(TAG, "开始调用calcThreshold...");
                 tg = Toolkit.calcThreshold(drawCache);
-                Log.d(TAG, "calcThreshold调用完毕...");
+                Log.d(TAG, "calcThreshold调用完毕...  tg="+tg.toString());
             }
-            int[] colors = new int[drawCache.getWidth()*drawCache.getHeight()];
-            for(int i=0; i<tg.grays.length; i++){
-                colors[i] = Color.argb(255, 0xFF&tg.grays[i], 0xFF&tg.grays[i], 0xFF&tg.grays[i]);
-                //Log.d(TAG, "tg.grays[i]="+(0xFF&tg.grays[i]));
-                //colors[i] = Color.RED;
-            }
-            Bitmap b = Bitmap.createBitmap(colors, 0, drawCache.getWidth(), drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
-            iv_test.setImageBitmap(b);
+//            int[] colors = new int[drawCache.getWidth()*drawCache.getHeight()];
+//            for(int i=0; i<tg.grays.length; i++){
+//                colors[i] = Color.argb(255, 0xFF&tg.grays[i], 0xFF&tg.grays[i], 0xFF&tg.grays[i]);
+//                //Log.d(TAG, "tg.grays[i]="+(0xFF&tg.grays[i]));
+//                //colors[i] = Color.RED;
+//            }
+//            Bitmap b = Bitmap.createBitmap(colors, 0, drawCache.getWidth(), drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
+//            iv_test.setImageBitmap(b);
             RectF rect = Toolkit.getCharacterRect(tg, (int)x, (int)y);
             Log.d(TAG, "x="+x+" y="+y+" bitmap.width="+drawCache.getWidth()+" rect="+rect.toShortString()+" 耗时:"+(System.currentTimeMillis()-t)+"ms");
 
