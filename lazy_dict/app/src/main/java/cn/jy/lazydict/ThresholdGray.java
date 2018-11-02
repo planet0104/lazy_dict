@@ -10,7 +10,19 @@ package cn.jy.lazydict;
         public final int threshold;
         public final int width;
         public final int height;
-        public final int bpp;
+
+    @Override
+    public String toString() {
+        return "ThresholdGray{" +
+                "threshold=" + threshold +
+                ", width=" + width +
+                ", height=" + height +
+                ", bpp=" + bpp +
+                ", grays.len()=" + grays.length +
+                '}';
+    }
+
+    public final int bpp;
         /**
          * 像素灰度值 每个字节代表一个像素灰度值0~255
          */

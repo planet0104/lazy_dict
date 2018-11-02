@@ -43,6 +43,14 @@ public class Toolkit {
     public static native ThresholdGray calcThreshold(Bitmap bitmap) throws Exception;
 
     /**
+     * 二值化
+     * @param bitmap
+     * @return
+     * @throws Exception
+     */
+    public static native ThresholdGray binary(Bitmap bitmap) throws Exception;
+
+    /**
      * 分组
      * @param list
      * @return

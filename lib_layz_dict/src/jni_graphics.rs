@@ -89,7 +89,7 @@ pub fn lock_bitmap<'a, F>(env: &jni::JNIEnv, bitmap: &JObject, mut render: F) ->
     if ret<0{
       return Result::Err(format!("AndroidBitmap_lockPixels! {}", ret));
     }
-    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height*bpp) as usize)};
+    let pixels = unsafe{ ::std::slice::from_raw_parts_mut(pixels as *mut u8, (info.stride*info.height) as usize)};
 
 	render(&info, pixels)?;
 	if unsafe{ AndroidBitmap_unlockPixels(jenv, jbitmap) } != 0{
