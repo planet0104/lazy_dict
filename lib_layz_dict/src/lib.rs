@@ -20,12 +20,21 @@ mod native_window;
 mod native_activity;
 mod imgtool;
 use imgtool::Rect;
+
+extern crate jieba_rs;
+
+use jieba_rs::Jieba;
+
 //use std::sync::mpsc::{ Sender, channel};
 // use std::sync::{Arc, Mutex};
 
 // const LEVEL:Level = Level::Error;
 // const LEVEL:Level = Level::Trace;
 const LEVEL:Level = Level::Debug;
+
+thread_local! {
+    pub static JIEBA:Jieba = Jieba::new();
+}
 
 //JNI加载完成
 #[no_mangle]
@@ -100,6 +109,42 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 		JObject::null().into_inner()
 	}else{
 		obj.unwrap()
+	}
+}
+
+//结巴分词
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
+	let mje = |err|{ format!("jiebaCut {:?}", err) };
+	let mut words_array = None;
+	let mut result = Err("jiebaCut 出错!".to_string());
+
+	JIEBA.with(|jieba|{
+		result = (||->Result<(), String> {
+			let text: String = env.get_string(text).map_err(mje)?.into();
+			let words = jieba.cut(&text, false);
+
+			let values_array = env.new_object_array(
+				words.len() as i32,
+				"java/lang/String",
+				JObject::null(),
+			).map_err(mje)?;
+
+			for (i,r) in words.iter().enumerate(){
+				env.set_object_array_element(values_array, i as i32, JObject::from(env.new_string(r).map_err(mje)?)).map_err(mje)?;
+			}
+			words_array = Some(values_array);
+			Ok(())
+		})();
+	});
+
+	if result.is_err(){
+		let err = result.err();
+		error!("{:?}", &err);
+		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
+		JObject::null().into_inner()
+	}else{
+		words_array.unwrap()
 	}
 }
 

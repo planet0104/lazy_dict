@@ -6,13 +6,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.DashPathEffect;
 import android.graphics.ImageFormat;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.hardware.Camera;
 import android.os.Bundle;
@@ -53,10 +48,8 @@ public class CameraActivity extends Activity{
 
     //所有用户选择的Rect
     List<RectF> allRect = new ArrayList<>();
-    Bitmap mask;
     Bitmap capture;
     Bitmap drawCache;
-    ThresholdGray tg;
     Camera camera;
     byte[] previewFrame = null;
     boolean isPreview = true;
@@ -77,7 +70,6 @@ public class CameraActivity extends Activity{
         btn_capture = findViewById(R.id.btn_capture);
         btn_preview = findViewById(R.id.btn_preview);
         surface_view = findViewById(R.id.surface_view);
-        surface_view.setVisibility(View.VISIBLE);
         surface_holder = surface_view.getHolder();
         btn_capture.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -149,69 +141,57 @@ public class CameraActivity extends Activity{
             long t = System.currentTimeMillis();
             try {
                 capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
-                //Toolkit.binary(capture);
                 iv_capture.setImageBitmap(capture);
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
                 changeStateCapture();//切换到截图状态
-
                 //识别
-                //tessBaseAPI.setPageSegMode();
+                tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
                 final View v = findViewById(R.id.v_area);
                 v.post(new Runnable() {
                     @Override
                     public void run() {
-                        int[] loc = new int[2];
-                        v.getLocationInWindow(loc);
-                        int[] locP = new int[2];
-                        fl_preview.getLocationInWindow(locP);
-                        Log.d(TAG, "loc="+ Arrays.toString(loc)+" locP="+Arrays.toString(locP));
-                        int left = loc[0];
-                        int top = loc[1]-locP[1];
-                        Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), left, top, v.getMeasuredWidth(), v.getMeasuredHeight());
-                        RectF[] rects = new RectF[0];
+                        Rect visibleRect = Toolkit.getLocationInParent(v, fl_preview);
+                        Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
                         try {
-                            rects = Toolkit.split(rect);
-                            Log.d(TAG, "rects="+Arrays.toString(rects));
-                            Toolkit.binary(rect);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        //绘制方块
-                        Canvas c = new Canvas(rect);
-                        Paint p = new Paint();
-                        p.setStyle(Paint.Style.STROKE);
-                        p.setStrokeWidth(3);
-                        p.setColor(Color.RED);
-                        tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
-                        for(RectF r : rects){
-                            long t = System.currentTimeMillis();
-                            Bitmap rb = Bitmap.createBitmap(rect, (int)r.left, (int)r.top, (int)(r.right-r.left), (int)(r.bottom-r.top));
-                            iv_test.setImageBitmap(rb);
-                            try{ Toolkit.binary(rb); } catch (Exception e){ }
-                            tessBaseAPI.setImage(rb);
-                            String all = "";
-                            String _text = tessBaseAPI.getUTF8Text();
-
-                            //------------------------------------------------------------------
-                            ResultIterator resultIterator = tessBaseAPI.getResultIterator();
-                            int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
-                            do{
-                                if(resultIterator.confidence(level)>80.0){
-                                    String ts = resultIterator.getUTF8Text(level);
-                                    char[] chars = ts.toCharArray();
-                                    for(char ch: chars){
-                                        if(isChinese(ch)){
-                                            all += ch;
+                            RectF[] splitRect = Toolkit.split(rect);
+                            List<String> resultArray = new ArrayList<>();
+                            for(RectF lineRect : splitRect){
+                                if(lineRect.height()<=10 || lineRect.width()<=10){
+                                    //宽高小于10像素的忽略
+                                    continue;
+                                }
+                                long t = System.currentTimeMillis();
+                                Bitmap rb = Bitmap.createBitmap(rect, (int)lineRect.left, (int)lineRect.top, (int)(lineRect.right-lineRect.left), (int)(lineRect.bottom-lineRect.top));
+                                iv_test.setImageBitmap(rb);
+                                try{ Toolkit.binary(rb); } catch (Exception e){ }
+                                tessBaseAPI.setImage(rb);
+                                String line = "";
+                                String _text = tessBaseAPI.getUTF8Text();
+                                //------------------------------------------------------------------
+                                ResultIterator resultIterator = tessBaseAPI.getResultIterator();
+                                int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
+                                do{
+                                    //提取准确率高于80%的字符
+                                    if(resultIterator.confidence(level)>80.0){
+                                        String ts = resultIterator.getUTF8Text(level);
+                                        char[] chars = ts.toCharArray();
+                                        for(char ch: chars){
+                                            if(Toolkit.isChinese(ch)){
+                                                line += ch;
+                                            }
                                         }
                                     }
-                                }
-                                //Log.d(TAG, "RIL_SYMBOL>>"+resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
-                            }while(resultIterator.next(level));
-                            resultIterator.delete();
-                            //------------------------------------------------------------------
-                            Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+all);
-                            c.drawRect(r, p);
+                                }while(resultIterator.next(level));
+                                resultIterator.delete();
+                                //------------------------------------------------------------------
+                                Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+line);
+                                long ft = System.currentTimeMillis();
+                                String[] jieba = Toolkit.jiebaCut(line);
+                                Log.d(TAG, "分词结果:"+Arrays.toString(jieba)+" 耗时:"+(System.currentTimeMillis()-ft)+"ms");
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                         iv_test.setImageBitmap(rect);
                     }
@@ -221,16 +201,6 @@ public class CameraActivity extends Activity{
                 showMessageDialog(e.getMessage(), false);
             }
         }
-    }
-
-    /**
-     * 输入的字符是否是汉字
-     * @param a char
-     * @return boolean
-     */
-    public static boolean isChinese(char a) {
-        int v = (int)a;
-        return (v >=19968 && v <= 171941);
     }
 
     /**
@@ -286,7 +256,13 @@ public class CameraActivity extends Activity{
                         public void run() {
                             if(tessInitFinal){
                                 //启动相机
-                                initCamera();
+                                surface_view.setVisibility(View.VISIBLE);
+                                surface_view.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        initCamera();
+                                    }
+                                });
                             }else{
                                 Log.e(TAG, "Tess初始化失败!");
                             }

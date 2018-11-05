@@ -9,6 +9,10 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        //只使用 armeabi-v7a
+        ndk{
+            abiFilters "armeabi-v7a"
+        }
     }
     buildTypes {
         release {
@@ -23,6 +27,4 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:27.1.1'
     implementation 'com.rmtheis:tess-two:9.0.0'
     testImplementation 'junit:junit:4.12'
-    implementation 'pl.droidsonroids.gif:android-gif-drawable:1.2.15'
-    implementation 'com.huaban:jieba-analysis:1.0.2'
 }
