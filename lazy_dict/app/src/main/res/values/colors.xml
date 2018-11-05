@@ -6,4 +6,6 @@
     <color name="colorBlue">#1677b3</color>
     <color name="colorWhite">#eef7f2</color>
     <color name="control_background">#cc4285f4</color>
+    <color name="translucent">#7fffffff</color>
+    7f000000
 </resources>

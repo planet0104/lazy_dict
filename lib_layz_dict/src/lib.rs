@@ -19,11 +19,7 @@ mod jni_graphics;
 mod native_window;
 mod native_activity;
 mod imgtool;
-use native_window::*;
-use jni::sys::jboolean;
-use std::cell::RefCell;
 use imgtool::Rect;
-use std::thread;
 //use std::sync::mpsc::{ Sender, channel};
 // use std::sync::{Arc, Mutex};
 
@@ -81,7 +77,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 				for chs in &gray_values{
 					gray_count[*chs as usize] += 1;
 				}
-				debug!("计算阈值:{} gray_count={:?}", threshold, gray_count);
+				//debug!("计算阈值:{} gray_count={:?}", threshold, gray_count);
 				let grays = env.byte_array_from_slice(&gray_values).map_err(mje)?;
 				obj = Some(env.new_object("cn/jy/lazydict/ThresholdGray", "(IIII[B)V",
 				&[
@@ -107,6 +103,56 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 	}
 }
 
+//拆分文字块
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject) -> jni::sys::jobject{
+	let mje = |err|{ format!("拆分文字块 {:?}", err) };
+	let mut rects = None;
+
+	let result = (||->Result<(), String> {
+		jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
+			//只支持argb888格式
+			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
+				Err("图片格式只支持RGBA_8888!".to_string())
+			}else{
+				//计算阈值
+				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
+				//边缘检测
+				let mut edges = vec![1; (info.width*info.height) as usize]; //1为背景, 0为边缘
+				imgtool::edge_detect_gray(&gray_values, &mut edges, info.width as usize, threshold);
+				//分割文字块
+				let mut arr = vec![];
+				for sub_rect in imgtool::split_lines(&mut edges, info.width as usize, info.height as usize){
+					arr.push(jni_graphics::new_rectf(&env, sub_rect.left as f32, sub_rect.top as f32, (sub_rect.left+sub_rect.width) as f32, (sub_rect.top+sub_rect.height) as f32).map_err(mje)?.into_inner());
+				}
+
+				let values_array = env.new_object_array(
+					arr.len() as i32,
+					"android/graphics/RectF",
+					JObject::null(),
+				).map_err(mje)?;
+
+				for (i,r) in arr.iter().enumerate(){
+					env.set_object_array_element(values_array, i as i32, JObject::from(*r)).map_err(mje)?;
+				}
+
+				rects = Some(values_array);
+				Ok(())
+			}
+		})?;
+		Ok(())
+	})();
+
+	if result.is_err(){
+		let err = result.err();
+		error!("{:?}", &err);
+		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
+		JObject::null().into_inner()
+	}else{
+		rects.unwrap()
+	}
+}
+
 //根据坐标选择一个文字块
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _activity: JClass, obj:JObject, x:jint, y:jint) -> jni::sys::jobject{
@@ -119,7 +165,6 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _act
 		let width = env.get_field(obj, "width", "I").map_err(mje)?.i().map_err(mje)?;
 		// let height = env.get_field(obj, "height", "I").map_err(mje)?.i().map_err(mje)?;
 		// let bpp = env.get_field(obj, "bpp", "I").map_err(mje)?.i().map_err(mje)?;
-		debug!("({}x{}) threshold={} threshold.len()={}", x, y, threshold, all_gray_values.len());
 		let mut gray_count = vec![0; 256];
 		for chs in &all_gray_values{
 			gray_count[*chs as usize] += 1;
