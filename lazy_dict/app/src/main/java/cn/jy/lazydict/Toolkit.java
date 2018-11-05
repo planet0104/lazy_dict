@@ -48,7 +48,9 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native ThresholdGray binary(Bitmap bitmap) throws Exception;
+    public static native void binary(Bitmap bitmap) throws Exception;
+
+    public static native RectF[] split(Bitmap bitmap) throws Exception;
 
     /**
      * 分组

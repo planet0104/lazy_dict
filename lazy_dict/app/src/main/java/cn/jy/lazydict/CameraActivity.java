@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
@@ -26,11 +27,13 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.googlecode.tesseract.android.ResultIterator;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class CameraActivity extends Activity{
@@ -45,7 +48,6 @@ public class CameraActivity extends Activity{
 
     //------ 截图相关 -------------
     FrameLayout fl_capture;
-    ImageView iv_mask;
     ImageView iv_capture;
     ImageButton btn_preview;
 
@@ -68,7 +70,6 @@ public class CameraActivity extends Activity{
         setContentView(R.layout.activity_camera);
         iv_test = findViewById(R.id.iv_test);
         iv_capture = findViewById(R.id.iv_capture);
-        iv_mask = findViewById(R.id.iv_mask);
         fl_capture = findViewById(R.id.fl_capture);
         iv_capture.setDrawingCacheEnabled(true);
 
@@ -76,6 +77,7 @@ public class CameraActivity extends Activity{
         btn_capture = findViewById(R.id.btn_capture);
         btn_preview = findViewById(R.id.btn_preview);
         surface_view = findViewById(R.id.surface_view);
+        surface_view.setVisibility(View.VISIBLE);
         surface_holder = surface_view.getHolder();
         btn_capture.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -109,18 +111,6 @@ public class CameraActivity extends Activity{
                 return false;
             }
         });
-
-        iv_mask.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()){
-                    case MotionEvent.ACTION_DOWN:
-                        addRect(event.getX(), event.getY());
-                        break;
-                }
-                return false;
-            }
-        });
     }
 
     /**
@@ -129,7 +119,6 @@ public class CameraActivity extends Activity{
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
         //清空数据
-        iv_mask.setImageBitmap(null);
         allRect.clear();
         drawCache = null;
         iv_capture.destroyDrawingCache();
@@ -160,25 +149,88 @@ public class CameraActivity extends Activity{
             long t = System.currentTimeMillis();
             try {
                 capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
-                Toolkit.binary(capture);
+                //Toolkit.binary(capture);
                 iv_capture.setImageBitmap(capture);
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
                 changeStateCapture();//切换到截图状态
 
-
                 //识别
-                t = System.currentTimeMillis();
-                tessBaseAPI.setPageSegMode();
-                tessBaseAPI.setImage(capture);
-                final String text = tessBaseAPI.getUTF8Text();
-                Log.d(TAG, "识别文字耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+text);
+                //tessBaseAPI.setPageSegMode();
+                final View v = findViewById(R.id.v_area);
+                v.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        int[] loc = new int[2];
+                        v.getLocationInWindow(loc);
+                        int[] locP = new int[2];
+                        fl_preview.getLocationInWindow(locP);
+                        Log.d(TAG, "loc="+ Arrays.toString(loc)+" locP="+Arrays.toString(locP));
+                        int left = loc[0];
+                        int top = loc[1]-locP[1];
+                        Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), left, top, v.getMeasuredWidth(), v.getMeasuredHeight());
+                        RectF[] rects = new RectF[0];
+                        try {
+                            rects = Toolkit.split(rect);
+                            Log.d(TAG, "rects="+Arrays.toString(rects));
+                            Toolkit.binary(rect);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        //绘制方块
+                        Canvas c = new Canvas(rect);
+                        Paint p = new Paint();
+                        p.setStyle(Paint.Style.STROKE);
+                        p.setStrokeWidth(3);
+                        p.setColor(Color.RED);
+                        tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
+                        for(RectF r : rects){
+                            long t = System.currentTimeMillis();
+                            Bitmap rb = Bitmap.createBitmap(rect, (int)r.left, (int)r.top, (int)(r.right-r.left), (int)(r.bottom-r.top));
+                            iv_test.setImageBitmap(rb);
+                            try{ Toolkit.binary(rb); } catch (Exception e){ }
+                            tessBaseAPI.setImage(rb);
+                            String all = "";
+                            String _text = tessBaseAPI.getUTF8Text();
 
+                            //------------------------------------------------------------------
+                            ResultIterator resultIterator = tessBaseAPI.getResultIterator();
+                            int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
+                            do{
+                                if(resultIterator.confidence(level)>80.0){
+                                    String ts = resultIterator.getUTF8Text(level);
+                                    char[] chars = ts.toCharArray();
+                                    for(char ch: chars){
+                                        if(isChinese(ch)){
+                                            all += ch;
+                                        }
+                                    }
+                                }
+                                //Log.d(TAG, "RIL_SYMBOL>>"+resultIterator.getUTF8Text(level)+"-"+resultIterator.confidence(level));
+                            }while(resultIterator.next(level));
+                            resultIterator.delete();
+                            //------------------------------------------------------------------
+                            Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+all);
+                            c.drawRect(r, p);
+                        }
+                        iv_test.setImageBitmap(rect);
+                    }
+                });
             } catch (Exception e) {
                 e.printStackTrace();
                 showMessageDialog(e.getMessage(), false);
             }
         }
+    }
+
+    /**
+     * 输入的字符是否是汉字
+     * @param a char
+     * @return boolean
+     */
+    public static boolean isChinese(char a) {
+        int v = (int)a;
+        return (v >=19968 && v <= 171941);
     }
 
     /**
@@ -296,67 +348,6 @@ public class CameraActivity extends Activity{
 
     public static void toast(Context context, String s){
         Toast.makeText(context, s, Toast.LENGTH_SHORT).show();
-    }
-
-    private void addRect(float x, float y){
-        try {
-            long t = System.currentTimeMillis();
-            if(drawCache == null){
-                drawCache =iv_capture.getDrawingCache();
-                Log.d(TAG, "开始调用calcThreshold...");
-                tg = Toolkit.calcThreshold(drawCache);
-                Log.d(TAG, "calcThreshold调用完毕...  tg="+tg.toString());
-            }
-//            int[] colors = new int[drawCache.getWidth()*drawCache.getHeight()];
-//            for(int i=0; i<tg.grays.length; i++){
-//                colors[i] = Color.argb(255, 0xFF&tg.grays[i], 0xFF&tg.grays[i], 0xFF&tg.grays[i]);
-//                //Log.d(TAG, "tg.grays[i]="+(0xFF&tg.grays[i]));
-//                //colors[i] = Color.RED;
-//            }
-//            Bitmap b = Bitmap.createBitmap(colors, 0, drawCache.getWidth(), drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
-//            iv_test.setImageBitmap(b);
-            RectF rect = Toolkit.getCharacterRect(tg, (int)x, (int)y);
-            Log.d(TAG, "x="+x+" y="+y+" bitmap.width="+drawCache.getWidth()+" rect="+rect.toShortString()+" 耗时:"+(System.currentTimeMillis()-t)+"ms");
-
-            //已经存在不再添加
-            for(RectF ur: allRect){
-                if(ur.left == rect.left && ur.top == rect.top && ur.right == rect.right && ur.bottom == rect.bottom){
-                    toast(this, "已经添加!");
-                    return;
-                }
-            }
-
-            allRect.add(rect);
-
-            if(mask == null){
-                mask = Bitmap.createBitmap(drawCache.getWidth(), drawCache.getHeight(), Bitmap.Config.ARGB_8888);
-            }
-
-            Canvas canvas = new Canvas(mask);
-            //清空画布
-            Paint paint = new Paint();
-            paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-            canvas.drawPaint(paint);
-
-            //先绘制红色半透明
-            paint = new Paint();
-            paint.setStyle(Paint.Style.STROKE);
-            int strokeWidth = Toolkit.dip2px(this,3);
-            paint.setStrokeWidth(strokeWidth);
-
-            for(RectF ur: allRect){
-                paint.setPathEffect(null);
-                paint.setColor(0x7fff0000);
-                canvas.drawRoundRect(ur, strokeWidth, strokeWidth, paint);
-                paint.setColor(0x7fffffff);
-                paint.setPathEffect(new DashPathEffect(new float[]{strokeWidth*2, strokeWidth*2}, 0));
-                canvas.drawRoundRect(ur, strokeWidth, strokeWidth, paint);
-            }
-            iv_mask.setImageBitmap(mask);
-        } catch (Exception e) {
-            e.printStackTrace();
-            showMessageDialog(e.getMessage(), false);
-        }
     }
 
     private void showMessageDialog(String errorMsg, final boolean isError){
