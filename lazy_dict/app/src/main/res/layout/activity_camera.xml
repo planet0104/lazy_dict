@@ -4,6 +4,7 @@
     android:id="@+id/container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/colorWhite"
     tools:context=".CameraActivity">
     <!-- 预览 -->
     <FrameLayout
@@ -12,6 +13,7 @@
         android:layout_height="match_parent">
         <!-- 预览 -->
         <SurfaceView android:id="@+id/surface_view"
+            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
         <LinearLayout
@@ -59,7 +61,7 @@
     </FrameLayout>
     <!-- 截屏 -->
     <FrameLayout
-
+        android:visibility="gone"
         android:id="@+id/fl_capture"
         android:layout_width="match_parent"
         android:layout_height="match_parent">

@@ -12,6 +12,7 @@ android_logger = "*"
 android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
 rayon = "1.0.2"
+jieba-rs = "0.2.5"
 
 [lib]
 crate-type = ["cdylib"]

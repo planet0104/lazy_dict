@@ -2,10 +2,10 @@ package cn.jy.lazydict;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.graphics.RectF;
-
-import java.util.ArrayList;
-import java.util.List;
+import android.view.View;
+import android.view.ViewGroup;
 
 public class Toolkit {
     static {
@@ -35,8 +35,6 @@ public class Toolkit {
     /**
      * 计算阈值和灰度图
      * @param bitmap
-     * @param x
-     * @param y
      * @return
      * @throws Exception
      */
@@ -52,47 +50,26 @@ public class Toolkit {
 
     public static native RectF[] split(Bitmap bitmap) throws Exception;
 
-    /**
-     * 分组
-     * @param list
-     * @return
-     */
-    public static List<List<RectF>> groupRects(List<RectF> list){
-        List<List<RectF>> result = new ArrayList<>();
-        while(list.size()>0){
-            RectF rect = list.remove(0);
-            if(result.size()>0){
-                for(List<RectF> subs : result){
-                    RectF first = subs.get(0);
-                    RectF last = subs.get(subs.size()-1);
-                    if(isClose(rect, first) || isClose(rect, last) ){
-                        subs.add(rect);
-                        continue;
-                    }
-                }
-            }else{
-                List<RectF> n = new ArrayList<>();
-                n.add(rect);
-                result.add(n);
-            }
-        }
-        return result;
+    public static native String[] jiebaCut(String text) throws Exception;
+
+    public static Rect getLocationInParent(View view, ViewGroup parent){
+        int[] loc = new int[2];
+        view.getLocationInWindow(loc);
+        int[] locP = new int[2];
+        parent.getLocationInWindow(locP);
+        int left = loc[0];
+        int top = loc[1]-locP[1];
+        return new Rect(left, top, left+view.getMeasuredWidth(), top+view.getMeasuredHeight());
     }
 
     /**
-     * 判断两个Rect是否距离很近(中心距离不超过width*1.2)
-     * @param r1
-     * @param r2
-     * @return
+     * 输入的字符是否是汉字
+     * @param a char
+     * @return boolean
      */
-    private static boolean isClose(RectF r1, RectF r2){
-        double width = r1.right-r1.left;
-        double x1 = (r1.right-r1.left)/2.0;
-        double y1 = (r1.bottom-r1.top)/2.0;
-        double x2 = (r2.right-r2.left)/2.0;
-        double y2 = (r2.bottom-r2.top)/2.0;
-        double distance = Math.abs(Math.sqrt(((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2))));
-        return distance<width*1.2;
+    public static boolean isChinese(char a) {
+        int v = (int)a;
+        return (v >=19968 && v <= 171941);
     }
 
     public static int dip2px(Context context, float dipValue){
