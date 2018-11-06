@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Jia Ye <planet0104@gmail.com>"]
 
 [dependencies]
-image = "*"
-imageproc = "*"
-rand = "0.5.5"
+serde_json = "1.0.32"
+bincode = "1.0.1"
+#image = "*"
+#imageproc = "*"
+#rand = "0.5.5"
