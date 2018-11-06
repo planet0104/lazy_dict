@@ -1,39 +1,53 @@
 package cn.jy.lazydict;
 
+import android.Manifest;
+import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
-import android.graphics.RectF;
+import android.graphics.drawable.AnimationDrawable;
 import android.hardware.Camera;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.Nullable;
+import android.support.annotation.RequiresApi;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import com.googlecode.tesseract.android.ResultIterator;
 import com.googlecode.tesseract.android.TessBaseAPI;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 public class CameraActivity extends Activity{
     static final String TAG = CameraActivity.class.getSimpleName();
     ImageView iv_test;
+    ImageView iv_switch_red;
+    ImageView iv_noise;
+    private AnimationDrawable animDot;
+    private AnimationDrawable animDotSlow;
+    AlertDialog messageDialog;
 
     //--------- 预览相关 ------------
     FrameLayout fl_preview;
@@ -45,26 +59,47 @@ public class CameraActivity extends Activity{
     FrameLayout fl_capture;
     ImageView iv_capture;
     ImageButton btn_preview;
+    ImageView iv_area;
+    ScrollLinearLayout sl_clip_rect;
+    ImageView iv_switch_red_2;
+    /**
+     * 搜索动画
+     */
+    ImageView iv_find;
 
-    //所有用户选择的Rect
-    List<RectF> allRect = new ArrayList<>();
     Bitmap capture;
     Bitmap drawCache;
     Camera camera;
     byte[] previewFrame = null;
     boolean isPreview = true;
+    int tvRectTop = 0;
+    Handler tessHandler;
+    ValueAnimator findAnimator = ValueAnimator.ofInt(0, 360);
+
+    LinearLayout ll_lines;
 
     static TessBaseAPI tessBaseAPI;
 
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+        ll_lines = findViewById(R.id.ll_lines);
+        iv_switch_red_2 = findViewById(R.id.iv_switch_red_2);
+        animDot = (AnimationDrawable) getDrawable(R.drawable.anim_dot);
+        animDotSlow = (AnimationDrawable)getDrawable(R.drawable.anim_dot_slow);
+        iv_switch_red = findViewById(R.id.iv_switch_red);
+        sl_clip_rect = findViewById(R.id.sl_clip_rect);
+        iv_switch_red.setImageDrawable(animDot);
+        iv_noise = findViewById(R.id.iv_noise);
         iv_test = findViewById(R.id.iv_test);
         iv_capture = findViewById(R.id.iv_capture);
         fl_capture = findViewById(R.id.fl_capture);
         iv_capture.setDrawingCacheEnabled(true);
+        iv_area = findViewById(R.id.iv_area);
+        iv_find = findViewById(R.id.iv_find);
 
         fl_preview = findViewById(R.id.fl_preview);
         btn_capture = findViewById(R.id.btn_capture);
@@ -81,7 +116,17 @@ public class CameraActivity extends Activity{
         btn_preview.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(camera == null) initCamera();
+                //移动电视到中间
+                Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
+                tvRectTop = tvRect.top;
+                sl_clip_rect.setOnScrollFinishedListener(new ScrollLinearLayout.OnScrollFinishedListener() {
+                    @Override
+                    public void onScrollFinished(ViewGroup scrollView) {
+                        sl_clip_rect.setOnScrollFinishedListener(null);
+                        if(camera == null) initCamera();
+                    }
+                });
+                sl_clip_rect.smoothScrollTo(0, 0, 800);
             }
         });
 
@@ -103,6 +148,131 @@ public class CameraActivity extends Activity{
                 return false;
             }
         });
+
+        animDot.start();
+
+        //处理识别的结果
+        tessHandler = new Handler(new Handler.Callback() {
+            @Override
+            public boolean handleMessage(Message msg) {
+                switch (msg.what){
+                    case Toolkit.MSG_TESS_RECOGNIZE_START:
+                        iv_switch_red_2.setImageDrawable(animDot);
+                        animDot.start();
+                        iv_find.setVisibility(View.VISIBLE);
+                        iv_find.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                findAnimator.setDuration(1000);
+                                findAnimator.setRepeatCount(-1);
+                                findAnimator.setInterpolator(new LinearInterpolator());
+                                //半径
+                                final int r = Toolkit.dip2px(CameraActivity.this, 15);
+                                final int w = iv_find.getMeasuredWidth();
+                                final int h = iv_find.getMeasuredHeight();
+                                final int x0 = ((FrameLayout.LayoutParams)iv_find.getLayoutParams()).leftMargin+w/2;
+                                final int y0 = ((FrameLayout.LayoutParams)iv_find.getLayoutParams()).topMargin+h/2;
+                                findAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                                    @Override
+                                    public void onAnimationUpdate(ValueAnimator animation) {
+                                        int theta = (int)animation.getAnimatedValue();
+                                        int x1 = (int) (x0 + r * Math.cos(theta * 3.14/180));
+                                        int y1 = (int) (y0 + r * Math.sin(theta * 3.14/180));
+                                        iv_find.layout(x1-w/2, y1-h/2,x1+w/2,y1+h/2);
+                                    }
+                                });
+                                findAnimator.start();
+                            }
+                        });
+                        break;
+                    case Toolkit.MSG_TESS_RECOGNIZE_ERROR:
+                        Exception e = (Exception) msg.obj;
+                        showMessageDialog(e.getMessage(), false);
+                        break;
+                    case Toolkit.MSG_TESS_RECOGNIZE_COMPLETE:
+                        animDot.stop();
+                        findAnimator.end();
+                        iv_find.setVisibility(View.GONE);
+                        iv_switch_red_2.setBackgroundResource(R.drawable.dot_red);
+                        if(ll_lines.getChildCount()==0){
+                            showMessageDialog("没有找到文字", false);
+                        }
+                        Log.d(TAG, "识别完毕.");
+                        break;
+                    case Toolkit.MSG_TESS_RECOGNIZE_LINE:
+                        String[] result = (String[]) msg.obj;
+                        if(result==null || result.length==0){
+                            return true;
+                        }
+
+                        //背景变色
+                        int tvbg;
+                        if(ll_lines.getTag() == null){
+                            tvbg = R.drawable.txt_line_red;
+                            ll_lines.setTag("");
+                        }else{
+                            tvbg = R.drawable.txt_line_blue;
+                            ll_lines.setTag(null);
+                        }
+                        for(String text : result){
+                            if(text==null || text.trim().length()==0) continue;
+                            TextView tv = new TextView(CameraActivity.this);
+                            tv.setText(text);
+                            tv.setBackgroundResource(tvbg);
+                            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                            tv.setTextColor(Color.WHITE);
+                            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                            llp.topMargin = Toolkit.dip2px(CameraActivity.this, 10);
+                            tv.setMinWidth(Toolkit.dip2px(CameraActivity.this, 60));
+                            tv.setGravity(Gravity.CENTER);
+                            tv.setLayoutParams(llp);
+                            ll_lines.addView(tv);
+                        }
+                        break;
+
+                    case Toolkit.MSG_TESS_INIT_ERROR:
+                        showMessageDialog("初始化失败!", true);
+                        break;
+                    case Toolkit.MSG_TESS_INIT_SUCCESS:
+                        //启动相机
+                        tessBaseAPI = (TessBaseAPI) msg.obj;
+                        requestCameraPermission();
+                        break;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void showSurfaceViewAndStart(){
+        surface_view.setVisibility(View.VISIBLE);
+        surface_view.post(new Runnable() {
+            @Override
+            public void run() {
+                initCamera();
+            }
+        });
+    }
+
+    //申请权限
+    private void requestCameraPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
+        } else {
+            showSurfaceViewAndStart();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                showSurfaceViewAndStart();
+            } else {
+                showMessageDialog("无法启动相机，请先允许相机访问权限", true);
+            }
+        }
     }
 
     /**
@@ -111,13 +281,19 @@ public class CameraActivity extends Activity{
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
         //清空数据
-        allRect.clear();
+        iv_area.setImageResource(R.color.transparent);
+        ll_lines.removeAllViews();
         drawCache = null;
         iv_capture.destroyDrawingCache();
         capture = null;
         fl_capture.setVisibility(View.GONE);
         fl_preview.setVisibility(View.VISIBLE);
         isPreview = true;
+        animDot.stop();
+        iv_switch_red.setImageDrawable(animDotSlow);
+        animDotSlow.start();
+        iv_noise.setVisibility(View.GONE);
+        iv_noise.setVisibility(View.GONE);
     }
 
     /**
@@ -128,6 +304,7 @@ public class CameraActivity extends Activity{
         fl_capture.setVisibility(View.VISIBLE);
         fl_preview.setVisibility(View.GONE);
         isPreview = false;
+        animDotSlow.stop();
     }
 
     private void capture(){
@@ -145,55 +322,18 @@ public class CameraActivity extends Activity{
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
                 changeStateCapture();//切换到截图状态
-                //识别
-                tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
-                final View v = findViewById(R.id.v_area);
-                v.post(new Runnable() {
+                iv_area.post(new Runnable() {
                     @Override
                     public void run() {
-                        Rect visibleRect = Toolkit.getLocationInParent(v, fl_preview);
+                        Rect visibleRect = Toolkit.getLocationInParent(iv_area, fl_preview);
                         Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
-                        try {
-                            RectF[] splitRect = Toolkit.split(rect);
-                            List<String> resultArray = new ArrayList<>();
-                            for(RectF lineRect : splitRect){
-                                if(lineRect.height()<=10 || lineRect.width()<=10){
-                                    //宽高小于10像素的忽略
-                                    continue;
-                                }
-                                long t = System.currentTimeMillis();
-                                Bitmap rb = Bitmap.createBitmap(rect, (int)lineRect.left, (int)lineRect.top, (int)(lineRect.right-lineRect.left), (int)(lineRect.bottom-lineRect.top));
-                                iv_test.setImageBitmap(rb);
-                                try{ Toolkit.binary(rb); } catch (Exception e){ }
-                                tessBaseAPI.setImage(rb);
-                                String line = "";
-                                String _text = tessBaseAPI.getUTF8Text();
-                                //------------------------------------------------------------------
-                                ResultIterator resultIterator = tessBaseAPI.getResultIterator();
-                                int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
-                                do{
-                                    //提取准确率高于80%的字符
-                                    if(resultIterator.confidence(level)>80.0){
-                                        String ts = resultIterator.getUTF8Text(level);
-                                        char[] chars = ts.toCharArray();
-                                        for(char ch: chars){
-                                            if(Toolkit.isChinese(ch)){
-                                                line += ch;
-                                            }
-                                        }
-                                    }
-                                }while(resultIterator.next(level));
-                                resultIterator.delete();
-                                //------------------------------------------------------------------
-                                Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+line);
-                                long ft = System.currentTimeMillis();
-                                String[] jieba = Toolkit.jiebaCut(line);
-                                Log.d(TAG, "分词结果:"+Arrays.toString(jieba)+" 耗时:"+(System.currentTimeMillis()-ft)+"ms");
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        iv_test.setImageBitmap(rect);
+                        iv_area.setImageBitmap(rect);
+                        //移动电视到顶部
+                        Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
+                        tvRectTop = tvRect.top;
+                        sl_clip_rect.smoothScrollTo(0, tvRectTop, 800);
+                        Toolkit.tessRecognize(tessBaseAPI, rect, tessHandler);
+                        //iv_test.setImageBitmap(rect);
                     }
                 });
             } catch (Exception e) {
@@ -215,62 +355,6 @@ public class CameraActivity extends Activity{
             camera.release();
             camera = null;
         }
-    }
-
-    private void init_tess_two(){
-        //将tessdata文件夹解压到files文件夹
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                boolean success = false;
-                try {
-                    File tessDataDir = new File(getFilesDir(), "tessdata");
-                    if(!tessDataDir.exists()){
-                        if(FileUtils.unpackZip(getAssets().open("tessdata.zip"), getFilesDir(), null)){
-                            Log.d(TAG, "tessdata解压成功");
-                            success = true;
-                        }else{
-                            Log.e(TAG, "tessdata解压失败");
-                        }
-                    }else{
-                        success = true;
-                        Log.e(TAG, "tessdata已经存在");
-                    }
-                } catch (IOException e) {
-                    Log.e(TAG, "tessdata文件夹读取失败!");
-                    e.printStackTrace();
-                }
-                if(success){
-                    //初始化 TessBaseAPI
-                    boolean tessInit;
-                    if(tessBaseAPI == null){
-                        tessBaseAPI = new TessBaseAPI();
-                        Log.d(TAG, "版本:"+tessBaseAPI.getVersion());
-                        tessInit = tessBaseAPI.init(getFilesDir().getAbsolutePath(), "chi_sim");
-                    }else{
-                        tessInit = true;
-                    }
-                    final boolean tessInitFinal = tessInit;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            if(tessInitFinal){
-                                //启动相机
-                                surface_view.setVisibility(View.VISIBLE);
-                                surface_view.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        initCamera();
-                                    }
-                                });
-                            }else{
-                                Log.e(TAG, "Tess初始化失败!");
-                            }
-                        }
-                    });
-                }
-            }
-        }).start();
     }
 
     /**
@@ -311,15 +395,17 @@ public class CameraActivity extends Activity{
     @Override
     protected void onResume() {
         super.onResume();
-        surface_view.post(new Runnable() {
-            @Override
-            public void run() {
-                if(camera==null && isPreview){
-                    //initCamera();
-                    init_tess_two();
+        if(messageDialog==null){
+            surface_view.post(new Runnable() {
+                @Override
+                public void run() {
+                    if(camera==null && isPreview){
+                        //initCamera();
+                        Toolkit.initTessTwo(CameraActivity.this, tessBaseAPI, tessHandler);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     public static void toast(Context context, String s){
@@ -333,12 +419,19 @@ public class CameraActivity extends Activity{
         builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
+                messageDialog = null;
                 dialog.dismiss();
                 if(isError)
-                finish();
+                    finish();
             }
         });
-        AlertDialog dialog = builder.create();
-        dialog.show();
+        messageDialog = builder.create();
+        messageDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+                messageDialog = null;
+            }
+        });
+        messageDialog.show();
     }
 }

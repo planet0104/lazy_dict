@@ -99,7 +99,6 @@ public class MainActivity extends Activity implements ImageReader.OnImageAvailab
     }
 
     private void requestCameraPermission() {
-        Log.d(TAG, "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<STEP_requestCameraPermission "+(System.currentTimeMillis()-step));
         tv_status.setText(R.string.status_camera);
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
