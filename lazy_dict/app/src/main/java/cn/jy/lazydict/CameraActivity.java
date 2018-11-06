@@ -9,7 +9,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.AnimationDrawable;
@@ -23,7 +22,6 @@ import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -35,12 +33,13 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 public class CameraActivity extends Activity{
+    //icon
+    //https://www.iconfinder.com/icons/1055094/check_select_icon
     static final String TAG = CameraActivity.class.getSimpleName();
     ImageView iv_test;
     ImageView iv_switch_red;
@@ -116,6 +115,10 @@ public class CameraActivity extends Activity{
         btn_preview.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                //识别中不处理
+                if(iv_find.getVisibility() == View.VISIBLE){
+                    return;
+                }
                 //移动电视到中间
                 Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
                 tvRectTop = tvRect.top;
@@ -216,17 +219,29 @@ public class CameraActivity extends Activity{
                         }
                         for(String text : result){
                             if(text==null || text.trim().length()==0) continue;
-                            TextView tv = new TextView(CameraActivity.this);
-                            tv.setText(text);
-                            tv.setBackgroundResource(tvbg);
-                            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-                            tv.setTextColor(Color.WHITE);
+                            //每一行
+                            LinearLayout line_layout = new LinearLayout(CameraActivity.this);
                             LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                             llp.topMargin = Toolkit.dip2px(CameraActivity.this, 10);
-                            tv.setMinWidth(Toolkit.dip2px(CameraActivity.this, 60));
-                            tv.setGravity(Gravity.CENTER);
-                            tv.setLayoutParams(llp);
-                            ll_lines.addView(tv);
+                            //tv.setMinWidth(Toolkit.dip2px(CameraActivity.this, 60));
+                            line_layout.setGravity(Gravity.CENTER);
+                            line_layout.setLayoutParams(llp);
+                            line_layout.setOrientation(LinearLayout.HORIZONTAL);
+                            line_layout.setBackgroundResource(tvbg);
+                            String[] pinyin = null;
+                            try{ pinyin= Toolkit.pinyin(text); }catch (Exception e1){e1.printStackTrace();}
+                            char[] chars = text.toCharArray();
+                            for(int i=0; i<text.length(); i++){
+                                PinYinTextView tv = new PinYinTextView(CameraActivity.this);
+                                tv.setText(chars[i]+"");
+                                if(pinyin.length>i){
+                                    tv.setPinyin(pinyin[i]);
+                                }else{
+                                    tv.setPinyin("");
+                                }
+                                line_layout.addView(tv);
+                            }
+                            ll_lines.addView(line_layout, llp);
                         }
                         break;
 

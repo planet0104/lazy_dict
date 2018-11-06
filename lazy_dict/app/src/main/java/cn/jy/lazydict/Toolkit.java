@@ -60,9 +60,29 @@ public class Toolkit {
      */
     public static native void binary(Bitmap bitmap) throws Exception;
 
+    /**
+     * 分割图片行
+     * @param bitmap
+     * @return
+     * @throws Exception
+     */
     public static native RectF[] split(Bitmap bitmap) throws Exception;
 
+    /**
+     * 结巴分词
+     * @param text
+     * @return
+     * @throws Exception
+     */
     public static native String[] jiebaCut(String text) throws Exception;
+
+    /**
+     * 汉字转拼音
+     * @param text
+     * @return
+     * @throws Exception
+     */
+    public static native String[] pinyin(String text) throws Exception;
 
     public static Rect getLocationInParent(View view, ViewGroup parent){
         int[] loc = new int[2];
