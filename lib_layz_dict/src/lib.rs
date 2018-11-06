@@ -20,7 +20,7 @@ mod native_window;
 mod native_activity;
 mod imgtool;
 use imgtool::Rect;
-
+extern crate pinyin;
 extern crate jieba_rs;
 
 use jieba_rs::Jieba;
@@ -112,6 +112,42 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 	}
 }
 
+//汉字转拼音
+#[no_mangle]
+pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
+	let mje = |err|{ format!("pinyin {:?}", err) };
+	let mut words_array = None;
+	let result = (||->Result<(), String> {
+		let text: String = env.get_string(text).map_err(mje)?.into();
+		let mut args = pinyin::Args::new();
+		//包含声调
+		args.style = pinyin::Style::Tone;
+		let pinyin_list = pinyin::pinyin(&text, &args);
+
+		let values_array = env.new_object_array(
+			pinyin_list.len() as i32,
+			"java/lang/String",
+			JObject::null(),
+		).map_err(mje)?;
+
+		for (i,r) in pinyin_list.iter().enumerate(){
+			if r.len()>0{
+				env.set_object_array_element(values_array, i as i32, JObject::from(env.new_string(r[0].clone()).map_err(mje)?)).map_err(mje)?;
+			}
+		}
+		words_array = Some(values_array);
+		Ok(())
+	})();
+
+	if result.is_err(){
+		let err = result.err();
+		error!("{:?}", &err);
+		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
+		JObject::null().into_inner()
+	}else{
+		words_array.unwrap()
+	}
+}
 //结巴分词
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{

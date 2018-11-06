@@ -70,11 +70,23 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp" />
         </LinearLayout>
-        <ImageButton
-            android:id="@+id/btn_capture"
-            android:src="@mipmap/magnifyingglass"
-            android:background="@null"
-            android:layout_gravity="bottom|center_horizontal"
+        <LinearLayout
+            android:layout_gravity="bottom"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:paddingBottom="20dp"
+            android:layout_height="wrap_content">
+            <ImageButton
+                android:id="@+id/btn_capture"
+                android:src="@drawable/btn_capture_selector"
+                android:background="@null"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <CheckBox
+            android:text="单行"
+            android:checked="true"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
     </FrameLayout>
@@ -138,7 +150,7 @@
             android:layout_marginTop="180dp"
             android:layout_marginLeft="20dp"
             android:layout_marginRight="20dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="80dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
             <LinearLayout
@@ -153,7 +165,8 @@
         <ImageButton
             android:id="@+id/btn_preview"
             android:background="@null"
-            android:src="@mipmap/repeat"
+            android:src="@drawable/btn_restart_selector"
+            android:layout_marginBottom="20dp"
             android:layout_width="wrap_content"
             android:layout_gravity="bottom|center_horizontal"
             android:layout_height="wrap_content" />
