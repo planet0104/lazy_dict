@@ -47,4 +47,8 @@ public class PinYinTextView extends LinearLayout {
     public void setPinyin(String text){
         tv_pinyin.setText(text);
     }
+
+    public TextView getPinyinView() {
+        return tv_pinyin;
+    }
 }

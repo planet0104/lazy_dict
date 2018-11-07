@@ -9,11 +9,12 @@ log = "*"
 lazy_static = "1.1.0"
 jni = { version = "*", default-features = false }
 android_logger = "*"
-android_support = "*"
 zip = { version = "*", features = ["deflate-zlib"], default-features = false }
-rayon = "1.0.2"
 jieba-rs = "0.2.5"
 pinyin = "0.4"
+bincode = "1.0.1"
+serde_derive = "1.0.80"
+serde = "1.0.80"
 
 [lib]
 crate-type = ["cdylib"]
