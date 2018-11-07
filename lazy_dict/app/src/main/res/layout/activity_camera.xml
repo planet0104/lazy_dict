@@ -84,15 +84,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
         </LinearLayout>
-        <CheckBox
-            android:text="单行"
-            android:checked="true"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
     </FrameLayout>
     <!-- 截屏 -->
     <FrameLayout
-        android:visibility="gone"
+        android:visibility="visible"
         android:id="@+id/fl_capture"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -161,6 +156,37 @@
 
             </LinearLayout>
         </ScrollView>
+        <FrameLayout
+            android:id="@+id/ll_mean"
+            android:visibility="visible"
+            android:paddingTop="60dp"
+            android:paddingLeft="10dp"
+            android:layout_marginTop="150dp"
+            android:layout_marginLeft="110dp"
+            android:layout_marginRight="10dp"
+            android:layout_marginBottom="100dp"
+            android:background="@drawable/bg_mean"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                <TextView
+                    android:id="@+id/tv_mean"
+                    android:text=""
+                    android:textColor="#4f5d73"
+                    android:textSize="16sp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+            </ScrollView>
+            <WebView
+                android:visibility="gone"
+                android:id="@+id/wv_mean"
+                android:layout_marginRight="4dp"
+                android:layout_marginBottom="10dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </FrameLayout>
         <!-- 切换到预览 -->
         <ImageButton
             android:id="@+id/btn_preview"

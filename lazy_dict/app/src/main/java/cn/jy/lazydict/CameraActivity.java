@@ -21,6 +21,7 @@ import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.text.Html;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -29,10 +30,12 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.LinearInterpolator;
+import android.webkit.WebView;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
@@ -61,6 +64,9 @@ public class CameraActivity extends Activity{
     ImageView iv_area;
     ScrollLinearLayout sl_clip_rect;
     ImageView iv_switch_red_2;
+    TextView tv_mean;
+    FrameLayout ll_mean;
+    WebView wv_mean;
     /**
      * 搜索动画
      */
@@ -86,6 +92,8 @@ public class CameraActivity extends Activity{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
         ll_lines = findViewById(R.id.ll_lines);
+        tv_mean = findViewById(R.id.tv_mean);
+        ll_mean = findViewById(R.id.ll_mean);
         iv_switch_red_2 = findViewById(R.id.iv_switch_red_2);
         animDot = (AnimationDrawable) getDrawable(R.drawable.anim_dot);
         animDotSlow = (AnimationDrawable)getDrawable(R.drawable.anim_dot_slow);
@@ -99,6 +107,8 @@ public class CameraActivity extends Activity{
         iv_capture.setDrawingCacheEnabled(true);
         iv_area = findViewById(R.id.iv_area);
         iv_find = findViewById(R.id.iv_find);
+        wv_mean = findViewById(R.id.wv_mean);
+        wv_mean.getSettings().setJavaScriptEnabled(true);
 
         fl_preview = findViewById(R.id.fl_preview);
         btn_capture = findViewById(R.id.btn_capture);
@@ -211,10 +221,10 @@ public class CameraActivity extends Activity{
                         //背景变色
                         int tvbg;
                         if(ll_lines.getTag() == null){
-                            tvbg = R.drawable.txt_line_red;
+                            tvbg = R.drawable.text_line_red_selector;
                             ll_lines.setTag("");
                         }else{
-                            tvbg = R.drawable.txt_line_blue;
+                            tvbg = R.drawable.text_line_blue_selector;
                             ll_lines.setTag(null);
                         }
                         for(String text : result){
@@ -223,7 +233,6 @@ public class CameraActivity extends Activity{
                             LinearLayout line_layout = new LinearLayout(CameraActivity.this);
                             LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                             llp.topMargin = Toolkit.dip2px(CameraActivity.this, 10);
-                            //tv.setMinWidth(Toolkit.dip2px(CameraActivity.this, 60));
                             line_layout.setGravity(Gravity.CENTER);
                             line_layout.setLayoutParams(llp);
                             line_layout.setOrientation(LinearLayout.HORIZONTAL);
@@ -233,6 +242,9 @@ public class CameraActivity extends Activity{
                             char[] chars = text.toCharArray();
                             for(int i=0; i<text.length(); i++){
                                 PinYinTextView tv = new PinYinTextView(CameraActivity.this);
+                                if(text.length()==1){
+                                    tv.getPinyinView().setMinWidth(Toolkit.dip2px(CameraActivity.this, 32));
+                                }
                                 tv.setText(chars[i]+"");
                                 if(pinyin.length>i){
                                     tv.setPinyin(pinyin[i]);
@@ -241,7 +253,47 @@ public class CameraActivity extends Activity{
                                 }
                                 line_layout.addView(tv);
                             }
+                            line_layout.setTag(text);
+                            line_layout.setOnClickListener(new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    wv_mean.setVisibility(View.GONE);
+                                    //切换选中状态
+                                    for(int i=0; i<ll_lines.getChildCount(); i++){
+                                        ll_lines.getChildAt(i).setSelected(false);
+                                    }
+                                    v.setSelected(true);
+
+                                    final String text = (String) v.getTag();
+                                    if(text.length()==1){
+                                        //查字
+                                        Word word = null;
+                                        try{ word = Toolkit.search(text); }catch (Exception e){ e.printStackTrace(); }
+                                        if(word == null){
+                                            tv_mean.setText("正在网络上搜索...");
+                                            Toolkit.checkBaiKe(text, tessHandler);
+                                            //wv_mean
+                                        }else{
+                                            tv_mean.setText(Html.fromHtml(word.toString()));
+                                        }
+                                    }else{
+                                        //查词
+                                        String mean = null;
+                                        try{ mean = Toolkit.searchWords(text); }catch (Exception e){ e.printStackTrace(); }
+                                        if(mean == null){
+                                            tv_mean.setText("正在网络上搜索...");
+                                            Toolkit.checkBaiKe(text, tessHandler);
+                                        }else{
+                                            tv_mean.setText(mean);
+                                        }
+                                    }
+                                }
+                            });
                             ll_lines.addView(line_layout, llp);
+                        }
+                        if(ll_lines.getChildCount()>0){
+                            ll_mean.setVisibility(View.VISIBLE);
+                            ll_lines.getChildAt(0).performClick();
                         }
                         break;
 
@@ -253,8 +305,23 @@ public class CameraActivity extends Activity{
                         tessBaseAPI = (TessBaseAPI) msg.obj;
                         requestCameraPermission();
                         break;
+                    case Toolkit.MSG_BAIKE_SEARCH_RESULT:
+                        if(msg.obj==null){
+                            tv_mean.setText("未找到解释");
+                        }else{
+                            String[] res = (String[]) msg.obj;
+                            tv_mean.setText(res[1]);
+                        }
+                        break;
                 }
                 return false;
+            }
+        });
+
+        ll_lines.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+
             }
         });
     }
@@ -296,6 +363,7 @@ public class CameraActivity extends Activity{
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
         //清空数据
+        ll_mean.setVisibility(View.GONE);
         iv_area.setImageResource(R.color.transparent);
         ll_lines.removeAllViews();
         drawCache = null;

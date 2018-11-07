@@ -1,4 +1,4 @@
-use rayon;
+// use rayon;
 
 // This value is 2 ^ 18 - 1, and is used to clamp the RGB values before their
 // ranges
@@ -57,7 +57,7 @@ pub fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&m
 		// 		});
 		// 	}
 		// });
-
+    /*
 		rayon::scope(|s| {
 			let mut i = 0;
 			//检查height的整除数 分成4个以内线程去执行
@@ -89,6 +89,7 @@ pub fn yuv_420_to_rgb_888(y_data: &[u8], u_data: &[u8], v_data: &[u8], output:&m
 				i += step-1;
 			}
 		});
+        */
 	}else{
 		//单线程 约11ms
 		let mut iout = 0;

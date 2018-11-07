@@ -14,9 +14,17 @@ import android.view.ViewGroup;
 import com.googlecode.tesseract.android.ResultIterator;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class Toolkit {
     static final String TAG = Toolkit.class.getSimpleName();
@@ -84,6 +92,62 @@ public class Toolkit {
      */
     public static native String[] pinyin(String text) throws Exception;
 
+    /**
+     * 查询汉字释义
+     * @param word
+     * @return
+     * @throws Exception
+     */
+    public static native Word search(String word) throws Exception;
+
+    /**
+     * 检查百度百科是否存在此词条
+     * @param word
+     * @param handler
+     */
+    public static void checkBaiKe(final String word, final Handler handler){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Message msg = Message.obtain();
+                msg.what = MSG_BAIKE_SEARCH_RESULT;
+                String[] result = new String[2];
+                msg.obj = null;
+                String url = "https://baike.baidu.com/item/"+word;
+                result[0] = url;
+                try{
+                    OkHttpClient client = new OkHttpClient();
+                    Request request = new Request.Builder()
+                            .url("https://baike.baidu.com/item/"+word)
+                            .build();
+                    Response response = client.newCall(request).execute();
+                    if(response.code() == 200){
+                        String doc = response.body().string();
+                        if(doc != null){
+                            Document document = Jsoup.parse(doc);
+                            Elements elements = document.select("div.lemma-summary");
+                            if(elements!=null && elements.size()>0){
+                                result[1] = elements.text();
+                                msg.obj = result;
+                            }
+                        }
+                    }
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+                handler.sendMessage(msg);
+            }
+        }).start();
+    }
+
+    /**
+     * 查询词语意思
+     * @param words
+     * @return
+     * @throws Exception
+     */
+    public static native String searchWords(String words) throws Exception;
+
     public static Rect getLocationInParent(View view, ViewGroup parent){
         int[] loc = new int[2];
         view.getLocationInWindow(loc);
@@ -101,6 +165,8 @@ public class Toolkit {
 
     public static final int MSG_TESS_INIT_SUCCESS = 10;
     public static final int MSG_TESS_INIT_ERROR = 11;
+
+    public static final int MSG_BAIKE_SEARCH_RESULT = 20;
 
     /**
      * 识别图片文字
