@@ -16,12 +16,22 @@
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+        <!-- 截图以后放入ImageView -->
+        <ImageView
+            android:contentDescription="@string/app_name"
+            android:id="@+id/iv_capture"
+            android:scaleType="centerCrop"
+            android:src="#00ffffff"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+        <!-- 遮罩层 -->
         <LinearLayout
+            android:id="@+id/ll_mask"
             android:orientation="vertical"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
             <View
-                android:background="@color/translucent"
+                android:background="@color/translucent_black"
                 android:layout_weight="1"
                 android:layout_width="match_parent"
                 android:layout_height="0dp" />
@@ -30,117 +40,79 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
                 <View
-                    android:background="@color/translucent"
+                    android:background="@color/translucent_black"
                     android:layout_weight="1"
                     android:layout_width="0dp"
                     android:layout_height="match_parent" />
+                <!-- 扫描区域 -->
                 <FrameLayout
-                    android:layout_width="190dp"
-                    android:layout_height="190dp">
-                    <!-- 1.2817 -->
-                    <ImageView
-                        android:id="@+id/iv_noise"
-                        android:layout_marginLeft="30.5dp"
-                        android:layout_marginTop="67dp"
-                        android:src="@drawable/ground"
-                        android:layout_width="98dp"
-                        android:layout_height="78dp" />
+                    android:id="@+id/fl_scan_area"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
                     <ImageView
                         android:layout_gravity="center"
-                        android:src="@drawable/tv"
-                        android:layout_width="190dp"
-                        android:layout_height="190dp" />
-                    <ImageView
-                        android:id="@+id/iv_switch_red"
-                        android:layout_marginLeft="144dp"
-                        android:layout_marginTop="104dp"
-                        android:src="@drawable/dot_red"
-                        android:layout_width="9.5dp"
-                        android:layout_height="9.5dp" />
+                        android:src="@drawable/scan"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                    <View
+                        android:visibility="invisible"
+                        android:id="@+id/v_scan_line"
+                        android:background="@drawable/scan_line"
+                        android:layout_gravity="center"
+                        android:layout_width="98dp"
+                        android:layout_height="10dp" />
                 </FrameLayout>
                 <View
-                    android:background="@color/translucent"
+                    android:background="@color/translucent_black"
                     android:layout_weight="1"
                     android:layout_width="0dp"
                     android:layout_height="match_parent" />
             </LinearLayout>
-            <View
-                android:background="@color/translucent"
+            <TextView
+                android:id="@+id/tv_scan_tip"
+                android:textColor="#77ffffff"
+                android:paddingTop="10dp"
+                android:lineSpacingExtra="6dp"
+                android:gravity="top|center_horizontal"
+                android:textSize="14dp"
+                android:text="@string/info_preview"
+                android:background="@color/translucent_black"
                 android:layout_weight="1"
                 android:layout_width="match_parent"
                 android:layout_height="0dp" />
         </LinearLayout>
-        <LinearLayout
+        <FrameLayout
             android:layout_gravity="bottom"
             android:gravity="center"
             android:orientation="horizontal"
             android:layout_width="match_parent"
-            android:paddingBottom="20dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:background="@color/translucent_black"
             android:layout_height="wrap_content">
             <ImageButton
                 android:id="@+id/btn_capture"
                 android:src="@drawable/btn_capture_selector"
                 android:background="@null"
+                android:layout_gravity="center"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
-        </LinearLayout>
+            <!-- 切换到预览 -->
+            <ImageButton
+                android:id="@+id/btn_preview"
+                android:background="@null"
+                android:src="@drawable/btn_restart_selector"
+                android:layout_width="wrap_content"
+                android:layout_gravity="center"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
     </FrameLayout>
     <!-- 截屏 -->
     <FrameLayout
-        android:visibility="visible"
+        android:visibility="gone"
         android:id="@+id/fl_capture"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-        <ImageView
-            android:id="@+id/iv_capture"
-            android:scaleType="centerCrop"
-            android:src="@mipmap/ic_launcher"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-        <View
-            android:background="@color/translucent"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-        <cn.jy.lazydict.ScrollLinearLayout
-            android:orientation="vertical"
-            android:id="@+id/sl_clip_rect"
-            android:gravity="center"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-            <FrameLayout
-                android:layout_gravity="center"
-                android:layout_width="190dp"
-                android:layout_height="190dp">
-                <ImageView
-                    android:id="@+id/iv_area"
-                    android:layout_marginTop="64dp"
-                    android:layout_marginBottom="42dp"
-                    android:layout_marginLeft="27dp"
-                    android:layout_marginRight="57dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-                <ImageView
-                    android:visibility="invisible"
-                    android:id="@+id/iv_find"
-                    android:layout_marginTop="80dp"
-                    android:layout_marginLeft="55dp"
-                    android:src="@drawable/find"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp" />
-                <ImageView
-                    android:layout_gravity="center"
-                    android:src="@drawable/tv_trans"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-                <ImageView
-                    android:id="@+id/iv_switch_red_2"
-                    android:layout_marginLeft="144dp"
-                    android:layout_marginTop="104dp"
-                    android:src="@drawable/dot_red"
-                    android:layout_width="9.5dp"
-                    android:layout_height="9.5dp" />
-            </FrameLayout>
-        </cn.jy.lazydict.ScrollLinearLayout>
         <ScrollView
             android:layout_marginTop="180dp"
             android:layout_marginLeft="20dp"
@@ -187,15 +159,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
         </FrameLayout>
-        <!-- 切换到预览 -->
-        <ImageButton
-            android:id="@+id/btn_preview"
-            android:background="@null"
-            android:src="@drawable/btn_restart_selector"
-            android:layout_marginBottom="20dp"
-            android:layout_width="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_height="wrap_content" />
     </FrameLayout>
     <ImageView
         android:visibility="gone"
@@ -203,4 +166,16 @@
         android:scaleType="centerInside"
         android:layout_width="100dp"
         android:layout_height="100dp" />
+    <LinearLayout
+        android:visibility="gone"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <Button
+            android:id="@+id/btn_up_search"
+            android:text="高级识别"
+            android:background="@color/colorWhite"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
 </FrameLayout>

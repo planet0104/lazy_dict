@@ -1,6 +1,7 @@
 package cn.jy.lazydict;
 
 import android.Manifest;
+import android.animation.Animator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -10,8 +11,6 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.drawable.AnimationDrawable;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,9 +27,9 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.animation.LinearInterpolator;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.webkit.WebView;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -45,11 +44,8 @@ public class CameraActivity extends Activity{
     //https://www.iconfinder.com/icons/1055094/check_select_icon
     static final String TAG = CameraActivity.class.getSimpleName();
     ImageView iv_test;
-    ImageView iv_switch_red;
-    ImageView iv_noise;
-    private AnimationDrawable animDot;
-    private AnimationDrawable animDotSlow;
     AlertDialog messageDialog;
+    TextView tv_scan_tip;
 
     //--------- 预览相关 ------------
     FrameLayout fl_preview;
@@ -58,28 +54,23 @@ public class CameraActivity extends Activity{
     ImageButton btn_capture;
 
     //------ 截图相关 -------------
+    View v_scan_line;
     FrameLayout fl_capture;
     ImageView iv_capture;
     ImageButton btn_preview;
-    ImageView iv_area;
-    ScrollLinearLayout sl_clip_rect;
-    ImageView iv_switch_red_2;
     TextView tv_mean;
     FrameLayout ll_mean;
     WebView wv_mean;
-    /**
-     * 搜索动画
-     */
-    ImageView iv_find;
-
+    Button btn_up_search;
+    FrameLayout fl_scan_area;
+    LinearLayout ll_mask;
     Bitmap capture;
     Bitmap drawCache;
     Camera camera;
     byte[] previewFrame = null;
     boolean isPreview = true;
-    int tvRectTop = 0;
     Handler tessHandler;
-    ValueAnimator findAnimator = ValueAnimator.ofInt(0, 360);
+    ValueAnimator findAnimator;
 
     LinearLayout ll_lines;
 
@@ -91,23 +82,19 @@ public class CameraActivity extends Activity{
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+        tv_scan_tip = findViewById(R.id.tv_scan_tip);
         ll_lines = findViewById(R.id.ll_lines);
         tv_mean = findViewById(R.id.tv_mean);
         ll_mean = findViewById(R.id.ll_mean);
-        iv_switch_red_2 = findViewById(R.id.iv_switch_red_2);
-        animDot = (AnimationDrawable) getDrawable(R.drawable.anim_dot);
-        animDotSlow = (AnimationDrawable)getDrawable(R.drawable.anim_dot_slow);
-        iv_switch_red = findViewById(R.id.iv_switch_red);
-        sl_clip_rect = findViewById(R.id.sl_clip_rect);
-        iv_switch_red.setImageDrawable(animDot);
-        iv_noise = findViewById(R.id.iv_noise);
+        ll_mask = findViewById(R.id.ll_mask);
+        v_scan_line = findViewById(R.id.v_scan_line);
+        btn_up_search = findViewById(R.id.btn_up_search);
         iv_test = findViewById(R.id.iv_test);
         iv_capture = findViewById(R.id.iv_capture);
         fl_capture = findViewById(R.id.fl_capture);
         iv_capture.setDrawingCacheEnabled(true);
-        iv_area = findViewById(R.id.iv_area);
-        iv_find = findViewById(R.id.iv_find);
         wv_mean = findViewById(R.id.wv_mean);
+        fl_scan_area = findViewById(R.id.fl_scan_area);
         wv_mean.getSettings().setJavaScriptEnabled(true);
 
         fl_preview = findViewById(R.id.fl_preview);
@@ -126,20 +113,10 @@ public class CameraActivity extends Activity{
             @Override
             public void onClick(View v) {
                 //识别中不处理
-                if(iv_find.getVisibility() == View.VISIBLE){
+                if(iv_capture.getTag() != null){
                     return;
                 }
-                //移动电视到中间
-                Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
-                tvRectTop = tvRect.top;
-                sl_clip_rect.setOnScrollFinishedListener(new ScrollLinearLayout.OnScrollFinishedListener() {
-                    @Override
-                    public void onScrollFinished(ViewGroup scrollView) {
-                        sl_clip_rect.setOnScrollFinishedListener(null);
-                        if(camera == null) initCamera();
-                    }
-                });
-                sl_clip_rect.smoothScrollTo(0, 0, 800);
+                if(camera == null) initCamera();
             }
         });
 
@@ -162,36 +139,42 @@ public class CameraActivity extends Activity{
             }
         });
 
-        animDot.start();
-
         //处理识别的结果
         tessHandler = new Handler(new Handler.Callback() {
             @Override
             public boolean handleMessage(Message msg) {
                 switch (msg.what){
                     case Toolkit.MSG_TESS_RECOGNIZE_START:
-                        iv_switch_red_2.setImageDrawable(animDot);
-                        animDot.start();
-                        iv_find.setVisibility(View.VISIBLE);
-                        iv_find.post(new Runnable() {
+                        //开始搜索，执行动画
+                        tv_scan_tip.setText(R.string.info_scanning);
+                        v_scan_line.post(new Runnable() {
                             @Override
                             public void run() {
-                                findAnimator.setDuration(1000);
+                                int r = fl_scan_area.getMeasuredHeight();
+                                findAnimator = ValueAnimator.ofInt(-r, r);
+                                findAnimator.setDuration(2000);
                                 findAnimator.setRepeatCount(-1);
-                                findAnimator.setInterpolator(new LinearInterpolator());
-                                //半径
-                                final int r = Toolkit.dip2px(CameraActivity.this, 15);
-                                final int w = iv_find.getMeasuredWidth();
-                                final int h = iv_find.getMeasuredHeight();
-                                final int x0 = ((FrameLayout.LayoutParams)iv_find.getLayoutParams()).leftMargin+w/2;
-                                final int y0 = ((FrameLayout.LayoutParams)iv_find.getLayoutParams()).topMargin+h/2;
+                                findAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+                                final int w = v_scan_line.getMeasuredWidth();
+                                final int h = v_scan_line.getMeasuredHeight();
+                                findAnimator.addListener(new Animator.AnimatorListener() {
+                                    @Override
+                                    public void onAnimationStart(Animator animation) {
+                                        v_scan_line.setVisibility(View.VISIBLE);
+                                    }
+                                    @Override
+                                    public void onAnimationEnd(Animator animation) {}
+                                    @Override
+                                    public void onAnimationCancel(Animator animation) {}
+                                    @Override
+                                    public void onAnimationRepeat(Animator animation) {}
+                                });
+
                                 findAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
                                     @Override
                                     public void onAnimationUpdate(ValueAnimator animation) {
-                                        int theta = (int)animation.getAnimatedValue();
-                                        int x1 = (int) (x0 + r * Math.cos(theta * 3.14/180));
-                                        int y1 = (int) (y0 + r * Math.sin(theta * 3.14/180));
-                                        iv_find.layout(x1-w/2, y1-h/2,x1+w/2,y1+h/2);
+                                        int val = (int)animation.getAnimatedValue();
+                                        v_scan_line.layout(0, val, w,val+h);
                                     }
                                 });
                                 findAnimator.start();
@@ -200,13 +183,13 @@ public class CameraActivity extends Activity{
                         break;
                     case Toolkit.MSG_TESS_RECOGNIZE_ERROR:
                         Exception e = (Exception) msg.obj;
+                        Log.d(TAG, "MSG_TESS_RECOGNIZE_ERROR!!");
+                        if(e != null)
                         showMessageDialog(e.getMessage(), false);
-                        break;
+                        //继续往下走
                     case Toolkit.MSG_TESS_RECOGNIZE_COMPLETE:
-                        animDot.stop();
                         findAnimator.end();
-                        iv_find.setVisibility(View.GONE);
-                        iv_switch_red_2.setBackgroundResource(R.drawable.dot_red);
+                        iv_capture.setTag(null);
                         if(ll_lines.getChildCount()==0){
                             showMessageDialog("没有找到文字", false);
                         }
@@ -290,10 +273,10 @@ public class CameraActivity extends Activity{
                                 }
                             });
                             ll_lines.addView(line_layout, llp);
-                        }
-                        if(ll_lines.getChildCount()>0){
-                            ll_mean.setVisibility(View.VISIBLE);
-                            ll_lines.getChildAt(0).performClick();
+                            if(ll_mean.getVisibility()==View.GONE){
+                                ll_mean.setVisibility(View.VISIBLE);
+                                ll_lines.getChildAt(0).performClick();
+                            }
                         }
                         break;
 
@@ -310,7 +293,7 @@ public class CameraActivity extends Activity{
                             tv_mean.setText("未找到解释");
                         }else{
                             String[] res = (String[]) msg.obj;
-                            tv_mean.setText(res[1]);
+                            tv_mean.setText(Html.fromHtml(res[1]));
                         }
                         break;
                 }
@@ -324,6 +307,15 @@ public class CameraActivity extends Activity{
 
             }
         });
+
+//        btn_up_search.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                Rect visibleRect = Toolkit.getLocationInParent(iv_area, fl_preview);
+//                Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
+//                Toolkit.upSearch(CameraActivity.this, rect, tessHandler);
+//            }
+//        });
     }
 
     private void showSurfaceViewAndStart(){
@@ -363,20 +355,20 @@ public class CameraActivity extends Activity{
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
         //清空数据
+        tv_scan_tip.setText(R.string.info_preview);
         ll_mean.setVisibility(View.GONE);
-        iv_area.setImageResource(R.color.transparent);
+        iv_capture.setImageResource(android.R.color.transparent);
+        iv_capture.setTag(null);
         ll_lines.removeAllViews();
         drawCache = null;
         iv_capture.destroyDrawingCache();
         capture = null;
-        fl_capture.setVisibility(View.GONE);
-        fl_preview.setVisibility(View.VISIBLE);
+        //fl_capture.setVisibility(View.GONE);
+        //fl_preview.setVisibility(View.VISIBLE);
+        btn_preview.setVisibility(View.GONE);
+        btn_capture.setClickable(true);
+        btn_capture.setVisibility(View.VISIBLE);
         isPreview = true;
-        animDot.stop();
-        iv_switch_red.setImageDrawable(animDotSlow);
-        animDotSlow.start();
-        iv_noise.setVisibility(View.GONE);
-        iv_noise.setVisibility(View.GONE);
     }
 
     /**
@@ -384,10 +376,11 @@ public class CameraActivity extends Activity{
      */
     private void changeStateCapture(){
         Log.d(TAG, "changeStateCapture");
-        fl_capture.setVisibility(View.VISIBLE);
-        fl_preview.setVisibility(View.GONE);
+        //fl_capture.setVisibility(View.VISIBLE);
+        //fl_preview.setVisibility(View.GONE);
+        btn_capture.setClickable(false);
+        btn_preview.setVisibility(View.VISIBLE);
         isPreview = false;
-        animDotSlow.stop();
     }
 
     private void capture(){
@@ -402,23 +395,21 @@ public class CameraActivity extends Activity{
             try {
                 capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
                 iv_capture.setImageBitmap(capture);
+                iv_capture.setTag("");
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
                 changeStateCapture();//切换到截图状态
-                iv_area.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Rect visibleRect = Toolkit.getLocationInParent(iv_area, fl_preview);
-                        Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
-                        iv_area.setImageBitmap(rect);
-                        //移动电视到顶部
-                        Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
-                        tvRectTop = tvRect.top;
-                        sl_clip_rect.smoothScrollTo(0, tvRectTop, 800);
-                        Toolkit.tessRecognize(tessBaseAPI, rect, tessHandler);
-                        //iv_test.setImageBitmap(rect);
-                    }
-                });
+                int[] loc = new int[2];
+                ll_mask.getLocationInWindow(loc);
+                int[] loc2 = new int[2];
+                fl_scan_area.getLocationInWindow(loc2);
+                int left = loc2[0];
+                int top = loc2[1]-loc[1];
+                Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), left, top, fl_scan_area.getMeasuredWidth(), fl_scan_area.getMeasuredHeight());
+//                        Rect scanRect = Toolkit.getLocationInParent(fl_scan_area, fl_preview);
+                //Toolkit.upSearch(CameraActivity.this, rect, tessHandler);
+                Toolkit.tessRecognize(tessBaseAPI, rect, tessHandler);
+                //iv_test.setImageBitmap(rect);
             } catch (Exception e) {
                 e.printStackTrace();
                 showMessageDialog(e.getMessage(), false);

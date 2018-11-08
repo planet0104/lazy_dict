@@ -10,6 +10,8 @@
     <string name="description_info">信息</string>
     <string name="request_permission">此示例需要相机权限。</string>
     <string name="camera_error">此设备不支持Camera2 API。</string>
+    <string name="info_preview">将不认识的文字放入框内\n点击下方按钮查询</string>
+    <string name="info_scanning">正在查询...</string>
     <string name="intro_message">
         <![CDATA[
 

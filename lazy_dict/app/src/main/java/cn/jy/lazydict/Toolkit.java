@@ -11,6 +11,13 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.baidu.ocr.sdk.OCR;
+import com.baidu.ocr.sdk.OnResultListener;
+import com.baidu.ocr.sdk.exception.OCRError;
+import com.baidu.ocr.sdk.model.AccessToken;
+import com.baidu.ocr.sdk.model.GeneralBasicParams;
+import com.baidu.ocr.sdk.model.GeneralResult;
+import com.baidu.ocr.sdk.model.WordSimple;
 import com.googlecode.tesseract.android.ResultIterator;
 import com.googlecode.tesseract.android.TessBaseAPI;
 
@@ -19,7 +26,9 @@ import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import okhttp3.OkHttpClient;
@@ -125,9 +134,15 @@ public class Toolkit {
                         String doc = response.body().string();
                         if(doc != null){
                             Document document = Jsoup.parse(doc);
-                            Elements elements = document.select("div.lemma-summary");
+                            String html = "";
+                            Elements elements = document.select("div.main-content");
+                            Elements list = document.select("ul.polysemantList-wrapper");
                             if(elements!=null && elements.size()>0){
-                                result[1] = elements.text();
+                                html += elements.html();
+                                if(list!=null && list.size()>0){
+                                    html = list.html()+html;
+                                }
+                                result[1] = html;
                                 msg.obj = result;
                             }
                         }
@@ -167,6 +182,104 @@ public class Toolkit {
     public static final int MSG_TESS_INIT_ERROR = 11;
 
     public static final int MSG_BAIKE_SEARCH_RESULT = 20;
+
+    public static final int MSG_UP_SEARCH_RESULT = 30;
+
+    public static void upSearch(final Activity activity, Bitmap bitmap, final Handler handler){
+        final File tmp = new File(activity.getCacheDir(), "cap.jpg");
+        try{
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, new FileOutputStream(tmp));
+        }catch (Exception e){
+            e.printStackTrace();
+            //识别出错
+            Message msg = Message.obtain();
+            msg.what = MSG_TESS_RECOGNIZE_ERROR;
+            msg.obj = e;
+            handler.sendMessage(msg);
+            return;
+        }
+        if(!tmp.exists()){
+            //识别出错
+            Message msg = Message.obtain();
+            msg.what = MSG_TESS_RECOGNIZE_ERROR;
+            handler.sendMessage(msg);
+            return;
+        }
+        final Runnable r = new Runnable() {
+            @Override
+            public void run() {
+                Log.d(TAG, "文字识别Run.");
+                // 通用文字识别参数设置
+                GeneralBasicParams param = new GeneralBasicParams();
+                param.setImageFile(tmp);
+
+                // 调用通用文字识别服务
+                OCR.getInstance(activity).recognizeGeneralBasic(param, new OnResultListener<GeneralResult>() {
+                    @Override
+                    public void onResult(GeneralResult result) {
+                        // 调用成功，返回GeneralResult对象
+                        for (WordSimple wordSimple : result.getWordList()) {
+                            try{
+                                String w = wordSimple.getWords();
+                                if(w==null) continue;
+                                StringBuilder sb = new StringBuilder();
+                                for(char c : w.toCharArray()){
+                                    if(Toolkit.isChinese(c)){
+                                        sb.append(c);
+                                    }
+                                }
+                                String[] words = Toolkit.jiebaCut(sb.toString());
+                                Log.d(TAG, "分词结果:"+Arrays.toString(words));
+                                //返回一行的分词结果
+                                Message msg = Message.obtain();
+                                msg.what = MSG_TESS_RECOGNIZE_LINE;
+                                msg.obj = words;
+                                handler.sendMessage(msg);
+                            }catch (Exception e){e.printStackTrace();}
+                        }
+                        //识别完成
+                        Log.d(TAG, "识别完成！！！！！！");
+                        Message msg = Message.obtain();
+                        msg.what = MSG_TESS_RECOGNIZE_COMPLETE;
+                        handler.sendMessage(msg);
+                    }
+                    @Override
+                    public void onError(OCRError error) {
+                        error.printStackTrace();
+                        // 调用失败，返回OCRError对象
+                        //识别出错
+                        Message msg = Message.obtain();
+                        msg.what = MSG_TESS_RECOGNIZE_ERROR;
+                        handler.sendMessage(msg);
+                    }
+                });
+            }
+        };
+
+        Message msg = Message.obtain();
+        msg.what = MSG_TESS_RECOGNIZE_START;
+        handler.sendMessage(msg);
+
+        if(OCR.getInstance(activity).getAccessToken() == null || OCR.getInstance(activity).getAccessToken().hasExpired()){
+            OCR.getInstance(activity).initAccessToken(new OnResultListener<AccessToken>() {
+                @Override
+                public void onResult(AccessToken result) {
+                    r.run();
+                }
+                @Override
+                public void onError(OCRError error) {
+                    error.printStackTrace();
+                    // 调用失败，返回OCRError子类SDKError对象
+                    //识别出错
+                    Message msg = Message.obtain();
+                    msg.what = MSG_TESS_RECOGNIZE_ERROR;
+                    handler.sendMessage(msg);
+                }
+            }, activity.getApplicationContext());
+        }else{
+            r.run();
+        }
+    }
 
     /**
      * 识别图片文字
