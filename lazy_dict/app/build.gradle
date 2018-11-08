@@ -8,7 +8,7 @@ android {
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner "android.support.bg_ring.runner.AndroidJUnitRunner"
         //只使用 armeabi-v7a
         ndk{
             abiFilters "armeabi-v7a"
@@ -29,4 +29,5 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation 'org.jsoup:jsoup:1.11.3'
+    implementation files('libs/ocr-sdk.jar')
 }
