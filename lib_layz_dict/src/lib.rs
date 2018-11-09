@@ -12,6 +12,7 @@ use jni::{JNIEnv};
 use self::jni::objects::{JObject, JString, JClass, JValue};
 use jni::sys::{jint, jbyteArray};
 use std::os::raw::{c_void};
+extern crate rayon;
 extern crate libc;
 mod utils;
 mod jni_graphics;
@@ -30,8 +31,16 @@ use std::collections::HashMap;
 use bincode::deserialize;
 use jieba_rs::Jieba;
 
-static CI:&[u8] = include_bytes!("../CI");
-static WORD:&[u8] = include_bytes!("../WORD");
+//use std::sync::mpsc::{ Sender, channel};
+// use std::sync::{Arc, Mutex};
+
+// const LEVEL:Level = Level::Error;
+// const LEVEL:Level = Level::Trace;
+const LEVEL:Level = Level::Debug;
+
+// thread_local! {
+//     pub static JIEBA:Jieba = Jieba::new();
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Word<'a>{
@@ -41,17 +50,13 @@ struct Word<'a>{
     pub explanation:&'a str
 }
 
-//use std::sync::mpsc::{ Sender, channel};
-// use std::sync::{Arc, Mutex};
+static CI:&[u8] = include_bytes!("../CI");
+static WORD:&[u8] = include_bytes!("../WORD");
 
-// const LEVEL:Level = Level::Error;
-// const LEVEL:Level = Level::Trace;
-const LEVEL:Level = Level::Debug;
-
-thread_local! {
-    pub static JIEBA:Jieba = Jieba::new();
-	static WORD_MAP:HashMap<&'static str, Word<'static>> = deserialize(WORD).unwrap();
-	static CI_MAP:HashMap<&'static str, &'static str> = deserialize(CI).unwrap();
+lazy_static! {
+    static ref JIEBA:Jieba = Jieba::new();
+	static ref WORD_MAP:HashMap<&'static str, Word<'static>> = deserialize(WORD).unwrap();
+	static ref CI_MAP:HashMap<&'static str, &'static str> = deserialize(CI).unwrap();
 }
 
 //JNI加载完成
@@ -134,24 +139,21 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JClass, jword: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("查询汉字 {:?}", err) };
-	let mut result = Err("查询汉字 出错!".to_string());
 	let mut meaning = JObject::null();
-	WORD_MAP.with(|map|{
-		result = (||->Result<(), String> {
-			let word: String = env.get_string(jword).map_err(mje)?.into();
-			if let Some(word) = map.get(word.as_str()){
-				meaning = env.new_object("cn/jy/lazydict/Word", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-				&[
-					JValue::from(JObject::from(jword)),
-					JValue::from(JObject::from(env.new_string(word.strokes).map_err(mje)?)),
-					JValue::from(JObject::from(env.new_string(word.pinyin).map_err(mje)?)),
-					JValue::from(JObject::from(env.new_string(word.radicals).map_err(mje)?)),
-					JValue::from(JObject::from(env.new_string(word.explanation).map_err(mje)?)),
-				]).map_err(mje)?;
-			}
-			Ok(())
-		})();
-	});
+	let result = (||->Result<(), String> {
+		let word: String = env.get_string(jword).map_err(mje)?.into();
+		if let Some(word) = WORD_MAP.get(word.as_str()){
+			meaning = env.new_object("cn/jy/lazydict/Word", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+			&[
+				JValue::from(JObject::from(jword)),
+				JValue::from(JObject::from(env.new_string(word.strokes).map_err(mje)?)),
+				JValue::from(JObject::from(env.new_string(word.pinyin).map_err(mje)?)),
+				JValue::from(JObject::from(env.new_string(word.radicals).map_err(mje)?)),
+				JValue::from(JObject::from(env.new_string(word.explanation).map_err(mje)?)),
+			]).map_err(mje)?;
+		}
+		Ok(())
+	})();
 
 	if result.is_err(){
 		let err = result.err();
@@ -166,17 +168,13 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JCl
 pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("查询词语 {:?}", err) };
 	let mut meaning = JObject::null();
-	let mut result = Err("查询词语 出错!".to_string());
-
-	CI_MAP.with(|map|{
-		result = (||->Result<(), String> {
-		let text: String = env.get_string(text).map_err(mje)?.into();
-			if let Some(mean) = map.get(text.as_str()){
-				meaning = JObject::from(env.new_string(*mean).map_err(mje)?);
-			}
-			Ok(())
-		})();
-	});
+	let result = (||->Result<(), String> {
+	let text: String = env.get_string(text).map_err(mje)?.into();
+		if let Some(mean) = CI_MAP.get(text.as_str()){
+			meaning = JObject::from(env.new_string(*mean).map_err(mje)?);
+		}
+		Ok(())
+	})();
 
 	if result.is_err(){
 		let err = result.err();
@@ -222,32 +220,27 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 		words_array.unwrap()
 	}
 }
-
 //结巴分词
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("jiebaCut {:?}", err) };
 	let mut words_array = None;
-	let mut result = Err("jiebaCut 出错!".to_string());
+	let result = (||->Result<(), String> {
+		let text: String = env.get_string(text).map_err(mje)?.into();
+		let words = JIEBA.cut(&text, false);
 
-	JIEBA.with(|jieba|{
-		result = (||->Result<(), String> {
-			let text: String = env.get_string(text).map_err(mje)?.into();
-			let words = jieba.cut(&text, false);
+		let values_array = env.new_object_array(
+			words.len() as i32,
+			"java/lang/String",
+			JObject::null(),
+		).map_err(mje)?;
 
-			let values_array = env.new_object_array(
-				words.len() as i32,
-				"java/lang/String",
-				JObject::null(),
-			).map_err(mje)?;
-
-			for (i,r) in words.iter().enumerate(){
-				env.set_object_array_element(values_array, i as i32, JObject::from(env.new_string(r).map_err(mje)?)).map_err(mje)?;
-			}
-			words_array = Some(values_array);
-			Ok(())
-		})();
-	});
+		for (i,r) in words.iter().enumerate(){
+			env.set_object_array_element(values_array, i as i32, JObject::from(env.new_string(r).map_err(mje)?)).map_err(mje)?;
+		}
+		words_array = Some(values_array);
+		Ok(())
+	})();
 
 	if result.is_err(){
 		let err = result.err();

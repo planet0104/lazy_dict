@@ -7,6 +7,5 @@
     <color name="colorWhite">#eef7f2</color>
     <color name="control_background">#cc4285f4</color>
     <color name="translucent">#7fffffff</color>
-    <color name="translucent_black">#7f000000</color>
     <color name="transparent">#00ffffff</color>
 </resources>
