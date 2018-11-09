@@ -23,11 +23,12 @@ android {
 }
 
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
     implementation 'com.android.support:appcompat-v7:27.1.1'
     implementation 'com.rmtheis:tess-two:9.0.0'
     testImplementation 'junit:junit:4.12'
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation 'org.jsoup:jsoup:1.11.3'
     implementation files('libs/ocr-sdk.jar')
+    implementation 'com.google.android:support-v4:r7'
 }
