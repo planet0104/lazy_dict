@@ -43,6 +43,8 @@ import android.widget.Toast;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
 
+import cds.sdg.sdf.nm.sp.SpotManager;
+
 import static cn.jy.lazydict.Toolkit.MSG_TESS_RECOGNIZE_LINE;
 import static cn.jy.lazydict.Toolkit.loadText;
 
@@ -678,5 +680,11 @@ public class CameraActivity extends Activity{
         ObjectAnimator objectAnimator = ObjectAnimator.ofFloat(ll_menu, "alpha", 1f, 0f);
         objectAnimator.setDuration(400);
         objectAnimator.start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        SpotManager.getInstance(this).onAppExit();
+        super.onDestroy();
     }
 }
