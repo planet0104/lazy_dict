@@ -22,7 +22,6 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.text.Html;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -72,6 +71,8 @@ public class CameraActivity extends Activity{
     Handler tessHandler;
     ValueAnimator findAnimator;
 
+    FrameLayout fl_capture_bottom;
+
     LinearLayout ll_lines;
 
     static TessBaseAPI tessBaseAPI;
@@ -81,8 +82,10 @@ public class CameraActivity extends Activity{
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(0xff303030);
         setContentView(R.layout.activity_camera);
         tv_scan_tip = findViewById(R.id.tv_scan_tip);
+        fl_capture_bottom = findViewById(R.id.fl_capture_bottom);
         ll_lines = findViewById(R.id.ll_lines);
         tv_mean = findViewById(R.id.tv_mean);
         ll_mean = findViewById(R.id.ll_mean);
@@ -146,7 +149,7 @@ public class CameraActivity extends Activity{
                 switch (msg.what){
                     case Toolkit.MSG_TESS_RECOGNIZE_START:
                         //开始搜索，执行动画
-                        tv_scan_tip.setText(R.string.info_scanning);
+                        //tv_scan_tip.setText(R.string.info_scanning);
                         v_scan_line.post(new Runnable() {
                             @Override
                             public void run() {
@@ -194,90 +197,6 @@ public class CameraActivity extends Activity{
                             showMessageDialog("没有找到文字", false);
                         }
                         Log.d(TAG, "识别完毕.");
-                        break;
-                    case Toolkit.MSG_TESS_RECOGNIZE_LINE:
-                        String[] result = (String[]) msg.obj;
-                        if(result==null || result.length==0){
-                            return true;
-                        }
-
-                        //背景变色
-                        int tvbg;
-                        if(ll_lines.getTag() == null){
-                            tvbg = R.drawable.text_line_red_selector;
-                            ll_lines.setTag("");
-                        }else{
-                            tvbg = R.drawable.text_line_blue_selector;
-                            ll_lines.setTag(null);
-                        }
-                        for(String text : result){
-                            if(text==null || text.trim().length()==0) continue;
-                            //每一行
-                            LinearLayout line_layout = new LinearLayout(CameraActivity.this);
-                            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                            llp.topMargin = Toolkit.dip2px(CameraActivity.this, 10);
-                            line_layout.setGravity(Gravity.CENTER);
-                            line_layout.setLayoutParams(llp);
-                            line_layout.setOrientation(LinearLayout.HORIZONTAL);
-                            line_layout.setBackgroundResource(tvbg);
-                            String[] pinyin = null;
-                            try{ pinyin= Toolkit.pinyin(text); }catch (Exception e1){e1.printStackTrace();}
-                            char[] chars = text.toCharArray();
-                            for(int i=0; i<text.length(); i++){
-                                PinYinTextView tv = new PinYinTextView(CameraActivity.this);
-                                if(text.length()==1){
-                                    tv.getPinyinView().setMinWidth(Toolkit.dip2px(CameraActivity.this, 32));
-                                }
-                                tv.setText(chars[i]+"");
-                                if(pinyin.length>i){
-                                    tv.setPinyin(pinyin[i]);
-                                }else{
-                                    tv.setPinyin("");
-                                }
-                                line_layout.addView(tv);
-                            }
-                            line_layout.setTag(text);
-                            line_layout.setOnClickListener(new View.OnClickListener() {
-                                @Override
-                                public void onClick(View v) {
-                                    wv_mean.setVisibility(View.GONE);
-                                    //切换选中状态
-                                    for(int i=0; i<ll_lines.getChildCount(); i++){
-                                        ll_lines.getChildAt(i).setSelected(false);
-                                    }
-                                    v.setSelected(true);
-
-                                    final String text = (String) v.getTag();
-                                    if(text.length()==1){
-                                        //查字
-                                        Word word = null;
-                                        try{ word = Toolkit.search(text); }catch (Exception e){ e.printStackTrace(); }
-                                        if(word == null){
-                                            tv_mean.setText("正在网络上搜索...");
-                                            Toolkit.checkBaiKe(text, tessHandler);
-                                            //wv_mean
-                                        }else{
-                                            tv_mean.setText(Html.fromHtml(word.toString()));
-                                        }
-                                    }else{
-                                        //查词
-                                        String mean = null;
-                                        try{ mean = Toolkit.searchWords(text); }catch (Exception e){ e.printStackTrace(); }
-                                        if(mean == null){
-                                            tv_mean.setText("正在网络上搜索...");
-                                            Toolkit.checkBaiKe(text, tessHandler);
-                                        }else{
-                                            tv_mean.setText(mean);
-                                        }
-                                    }
-                                }
-                            });
-                            ll_lines.addView(line_layout, llp);
-                            if(ll_mean.getVisibility()==View.GONE){
-                                ll_mean.setVisibility(View.VISIBLE);
-                                ll_lines.getChildAt(0).performClick();
-                            }
-                        }
                         break;
 
                     case Toolkit.MSG_TESS_INIT_ERROR:
@@ -355,6 +274,7 @@ public class CameraActivity extends Activity{
     private void changeStatePreview(){
         Log.d(TAG, "changeStatePreview");
         //清空数据
+        fl_capture_bottom.setVisibility(View.VISIBLE);
         tv_scan_tip.setText(R.string.info_preview);
         ll_mean.setVisibility(View.GONE);
         iv_capture.setImageResource(android.R.color.transparent);
@@ -389,31 +309,13 @@ public class CameraActivity extends Activity{
             android.hardware.Camera.CameraInfo info =
                     new android.hardware.Camera.CameraInfo();
             android.hardware.Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, info);
-
             Camera.Size size = camera.getParameters().getPreviewSize();
-            long t = System.currentTimeMillis();
-            try {
-                capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
-                iv_capture.setImageBitmap(capture);
-                iv_capture.setTag("");
-                Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
-                releaseCamera();//释放相机
-                changeStateCapture();//切换到截图状态
-                int[] loc = new int[2];
-                ll_mask.getLocationInWindow(loc);
-                int[] loc2 = new int[2];
-                fl_scan_area.getLocationInWindow(loc2);
-                int left = loc2[0];
-                int top = loc2[1]-loc[1];
-                Bitmap rect = Bitmap.createBitmap(iv_capture.getDrawingCache(), left, top, fl_scan_area.getMeasuredWidth(), fl_scan_area.getMeasuredHeight());
-//                        Rect scanRect = Toolkit.getLocationInParent(fl_scan_area, fl_preview);
-                //Toolkit.upSearch(CameraActivity.this, rect, tessHandler);
-                Toolkit.tessRecognize(tessBaseAPI, rect, tessHandler);
-                //iv_test.setImageBitmap(rect);
-            } catch (Exception e) {
-                e.printStackTrace();
-                showMessageDialog(e.getMessage(), false);
-            }
+            byte[] frame = previewFrame;
+            releaseCamera();//释放相机
+            fl_capture_bottom.setVisibility(View.GONE);
+            new SearchDialog(this, info, size, frame).show();
+        }else{
+            showMessageDialog("相机出错!", false);
         }
     }
 
@@ -469,7 +371,7 @@ public class CameraActivity extends Activity{
     @Override
     protected void onResume() {
         super.onResume();
-        if(messageDialog==null){
+        if(fl_capture_bottom.getVisibility()==View.VISIBLE){
             surface_view.post(new Runnable() {
                 @Override
                 public void run() {
@@ -486,7 +388,7 @@ public class CameraActivity extends Activity{
         Toast.makeText(context, s, Toast.LENGTH_SHORT).show();
     }
 
-    private void showMessageDialog(String errorMsg, final boolean isError){
+    void showMessageDialog(String errorMsg, final boolean isError){
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setMessage(errorMsg);
         builder.setTitle("程序错误");

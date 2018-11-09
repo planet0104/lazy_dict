@@ -185,6 +185,8 @@ public class Toolkit {
 
     public static final int MSG_UP_SEARCH_RESULT = 30;
 
+    public static final int MSG_DECODE_COMPLETE = 40;
+
     public static void upSearch(final Activity activity, Bitmap bitmap, final Handler handler){
         final File tmp = new File(activity.getCacheDir(), "cap.jpg");
         try{
@@ -292,57 +294,7 @@ public class Toolkit {
             @Override
             public void run() {
                 try {
-                    RectF[] splitRect = Toolkit.split(bitmap);
-                    //识别
-                    tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
 
-                    Message msg = Message.obtain();
-                    msg.what = MSG_TESS_RECOGNIZE_START;
-                    handler.sendMessage(msg);
-
-                    for(RectF lineRect : splitRect){
-                        if(lineRect.height()<=10 || lineRect.width()<=10){
-                            //宽高小于10像素的忽略
-                            continue;
-                        }
-                        long t = System.currentTimeMillis();
-                        Bitmap rb = Bitmap.createBitmap(bitmap, (int)lineRect.left, (int)lineRect.top, (int)(lineRect.right-lineRect.left), (int)(lineRect.bottom-lineRect.top));
-                        Toolkit.binary(rb);
-                        tessBaseAPI.setImage(rb);
-                        String line = "";
-                        String _text = tessBaseAPI.getUTF8Text();
-                        //------------------------------------------------------------------
-                        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
-                        int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
-                        do{
-                            //提取准确率高于80%的字符
-                            if(resultIterator.confidence(level)>80.0){
-                                String ts = resultIterator.getUTF8Text(level);
-                                char[] chars = ts.toCharArray();
-                                for(char ch: chars){
-                                    if(Toolkit.isChinese(ch)){
-                                        line += ch;
-                                    }
-                                }
-                            }
-                        }while(resultIterator.next(level));
-                        resultIterator.delete();
-                        //------------------------------------------------------------------
-                        Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+line);
-                        long ft = System.currentTimeMillis();
-                        String[] words = Toolkit.jiebaCut(line);
-                        Log.d(TAG, "分词结果:"+Arrays.toString(words)+" 耗时:"+(System.currentTimeMillis()-ft)+"ms");
-                        //返回一行的分词结果
-                        msg = Message.obtain();
-                        msg.what = MSG_TESS_RECOGNIZE_LINE;
-                        msg.obj = words;
-                        handler.sendMessage(msg);
-                    }
-
-                    //识别完成
-                    msg = Message.obtain();
-                    msg.what = MSG_TESS_RECOGNIZE_COMPLETE;
-                    handler.sendMessage(msg);
                 } catch (Exception e) {
                     e.printStackTrace();
                     //识别出错

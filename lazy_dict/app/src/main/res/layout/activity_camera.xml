@@ -82,6 +82,7 @@
                 android:layout_height="0dp" />
         </LinearLayout>
         <FrameLayout
+            android:id="@+id/fl_capture_bottom"
             android:layout_gravity="bottom"
             android:gravity="center"
             android:orientation="horizontal"
