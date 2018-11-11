@@ -1,7 +1,6 @@
 package cn.jy.lazydict;
 
 import android.content.Context;
-import android.util.Log;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -9,11 +8,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.logging.Handler;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import static cn.jy.lazydict.MainActivity.TAG;
 
 public class FileUtils {
 

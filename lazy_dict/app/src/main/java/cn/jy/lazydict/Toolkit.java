@@ -7,7 +7,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Handler;
 import android.os.Message;
-import android.renderscript.Element;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,7 +29,6 @@ import org.jsoup.select.Elements;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.Arrays;
 
 import okhttp3.OkHttpClient;
@@ -186,18 +184,18 @@ public class Toolkit {
 
     /**
      * 识别图片文字
-     * @param tessBaseAPI
+     * @param activity
      * @param bitmap
      * @param handler
      */
-    public static void tessRecognize(final TessBaseAPI tessBaseAPI, final Bitmap bitmap, final android.os.Handler handler){
+    public static void tessRecognize(final Activity activity, final Bitmap bitmap, final android.os.Handler handler){
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
                     RectF[] splitRect = Toolkit.split(bitmap);
                     //识别
-                    tessBaseAPI.setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
+                    MyApp.getTessApi(activity).setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
 
                     Message msg = Message.obtain();
                     msg.what = MSG_TESS_RECOGNIZE_START;
@@ -211,11 +209,11 @@ public class Toolkit {
                         long t = System.currentTimeMillis();
                         Bitmap rb = Bitmap.createBitmap(bitmap, (int)lineRect.left, (int)lineRect.top, (int)(lineRect.right-lineRect.left), (int)(lineRect.bottom-lineRect.top));
                         Toolkit.binary(rb);
-                        tessBaseAPI.setImage(rb);
+                        MyApp.getTessApi(activity).setImage(rb);
                         String line = "";
-                        String _text = tessBaseAPI.getUTF8Text();
+                        String _text = MyApp.getTessApi(activity).getUTF8Text();
                         //------------------------------------------------------------------
-                        ResultIterator resultIterator = tessBaseAPI.getResultIterator();
+                        ResultIterator resultIterator = MyApp.getTessApi(activity).getResultIterator();
                         int level = TessBaseAPI.PageIteratorLevel.RIL_SYMBOL;
                         do{
                             //提取准确率高于80%的字符
@@ -260,58 +258,19 @@ public class Toolkit {
         thread.start();
     }
 
-    public static void initTessTwo(final Activity activity, final TessBaseAPI tessBaseAPI, final Handler handler){
+    public static void initTessTwo(final Activity activity, final Handler handler){
         //将tessdata文件夹解压到files文件夹
         new Thread(new Runnable() {
             @Override
             public void run() {
-                boolean success = false;
-                try {
-                    File tessDataDir = new File(activity.getFilesDir(), "tessdata");
-                    if(!tessDataDir.exists()){
-                        if(FileUtils.unpackZip(activity.getAssets().open("tessdata.zip"), activity.getFilesDir(), null)){
-                            Log.d(TAG, "tessdata解压成功");
-                            success = true;
-                        }else{
-                            Log.e(TAG, "tessdata解压失败");
-                        }
-                    }else{
-                        success = true;
-                        Log.e(TAG, "tessdata已经存在");
-                    }
-                } catch (IOException e) {
-                    Log.e(TAG, "tessdata文件夹读取失败!");
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                if(success){
-                    //初始化 TessBaseAPI
-                    boolean tessInit;
-                    TessBaseAPI baseAPI;
-                    if(tessBaseAPI == null){
-                        baseAPI = new TessBaseAPI();
-                        Log.d(TAG, "版本:"+baseAPI.getVersion());
-                        tessInit = baseAPI.init(activity.getFilesDir().getAbsolutePath(), "chi_sim");
-                    }else{
-                        baseAPI = tessBaseAPI;
-                        tessInit = true;
-                    }
-
-                    Message msg = Message.obtain();
-                    if(!tessInit){
-                        msg.what = MSG_TESS_INIT_ERROR;
-                        handler.sendMessage(msg);
-                    }else{
-                        msg.what = MSG_TESS_INIT_SUCCESS;
-                        msg.obj = baseAPI;
-                        handler.sendMessage(msg);
-                    }
+                Message msg = Message.obtain();
+                if(MyApp.getTessApi(activity)!=null){
+                    msg.what = MSG_TESS_INIT_SUCCESS;
                 }else{
-                    Message msg = Message.obtain();
                     msg.what = MSG_TESS_INIT_ERROR;
-                    handler.sendMessage(msg);
                 }
+                if(handler!=null)
+                handler.sendMessage(msg);
             }
         }).start();
     }

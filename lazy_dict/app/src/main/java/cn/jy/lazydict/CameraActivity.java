@@ -22,8 +22,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -40,15 +38,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import com.googlecode.tesseract.android.TessBaseAPI;
-
-import cds.sdg.sdf.nm.sp.SpotManager;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 import static cn.jy.lazydict.Toolkit.MSG_TESS_RECOGNIZE_LINE;
 import static cn.jy.lazydict.Toolkit.loadText;
 
-public class CameraActivity extends Activity{
+public class CameraActivity extends Activity {
     //icon
     //https://www.iconfinder.com/icons/1055094/check_select_icon
     static final String TAG = CameraActivity.class.getSimpleName();
@@ -67,7 +63,7 @@ public class CameraActivity extends Activity{
     LinearLayout ll_btn_capture;
 
     //------ 截图相关 -------------
-    FrameLayout fl_capture;
+    LinearLayout fl_capture;
     ImageView iv_capture;
     ImageButton btn_preview;
     ImageView iv_area;
@@ -85,7 +81,6 @@ public class CameraActivity extends Activity{
     Camera camera;
     byte[] previewFrame = null;
     boolean isPreview = true;
-    int tvRectTop = 0;
     Handler tessHandler;
     ValueAnimator findAnimator = ValueAnimator.ofInt(0, 360);
 
@@ -100,19 +95,19 @@ public class CameraActivity extends Activity{
      */
     Bitmap bitmapRect;
 
-    static TessBaseAPI tessBaseAPI;
-
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+
         ll_lines = findViewById(R.id.ll_lines);
         ll_mean = findViewById(R.id.ll_mean);
         tv_help = findViewById(R.id.tv_help);
         ll_menu = findViewById(R.id.ll_menu);
         tv_about = findViewById(R.id.tv_about);
+
         ll_btn_capture = findViewById(R.id.ll_btn_capture);
         tv_up_search = findViewById(R.id.tv_up_search);
         iv_switch_red_2 = findViewById(R.id.iv_switch_red_2);
@@ -194,7 +189,6 @@ public class CameraActivity extends Activity{
                 ll_mean.setVisibility(View.GONE);
                 //移动电视到中间
                 Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
-                tvRectTop = tvRect.top;
                 sl_clip_rect.setOnScrollFinishedListener(new ScrollLinearLayout.OnScrollFinishedListener() {
                     @Override
                     public void onScrollFinished(ViewGroup scrollView) {
@@ -382,7 +376,6 @@ public class CameraActivity extends Activity{
                         break;
                     case Toolkit.MSG_TESS_INIT_SUCCESS:
                         //启动相机
-                        tessBaseAPI = (TessBaseAPI) msg.obj;
                         ll_btn_capture.setVisibility(View.VISIBLE);
                         requestCameraPermission();
                         break;
@@ -433,18 +426,6 @@ public class CameraActivity extends Activity{
             }
         });
 
-        //初始化jieba
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Toolkit.jiebaCut("字");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-
         tv_about.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -488,9 +469,13 @@ public class CameraActivity extends Activity{
 
     //申请权限
     private void requestCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
-        } else {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission( Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions( new String[]{Manifest.permission.CAMERA}, 1);
+            } else {
+                showSurfaceViewAndStart();
+            }
+        }else{
             showSurfaceViewAndStart();
         }
     }
@@ -563,9 +548,9 @@ public class CameraActivity extends Activity{
                         iv_area.setImageBitmap(bitmapRect);
                         //移动电视到顶部
                         Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
-                        tvRectTop = tvRect.top+Toolkit.dip2px(CameraActivity.this, 40);
+                        int tvRectTop = tvRect.top+Toolkit.dip2px(CameraActivity.this, 40);
                         sl_clip_rect.smoothScrollTo(0, tvRectTop, 800);
-                        Toolkit.tessRecognize(tessBaseAPI, bitmapRect, tessHandler);
+                        Toolkit.tessRecognize(CameraActivity.this, bitmapRect, tessHandler);
                         //iv_test.setImageBitmap(rect);
                     }
                 });
@@ -623,6 +608,7 @@ public class CameraActivity extends Activity{
     protected void onStop() {
         releaseCamera();
         super.onStop();
+        SharedPreferencesHelper.saveLong(this, "SPF_KEY_LAST_OPEN", System.currentTimeMillis());
     }
 
     @Override
@@ -634,38 +620,50 @@ public class CameraActivity extends Activity{
                 public void run() {
                     if(camera==null && isPreview){
                         //initCamera();
-                        Toolkit.initTessTwo(CameraActivity.this, tessBaseAPI, tessHandler);
+                        Toolkit.initTessTwo(CameraActivity.this, tessHandler);
                     }
                 }
             });
         }
-    }
 
-    public static void toast(Context context, String s){
-        Toast.makeText(context, s, Toast.LENGTH_SHORT).show();
+        //距离上次使用超过5分钟，重新显示启动页面
+        long lastUse = SharedPreferencesHelper.getLong(this, MyApp.SPF_KEY_LAST_OPEN);
+        long elapsed = System.currentTimeMillis()-lastUse;
+        if(elapsed>1000*60*5){
+            startActivity(new Intent(this, SplashActivity.class));
+            SharedPreferencesHelper.saveLong(this, MyApp.SPF_KEY_LAST_OPEN, System.currentTimeMillis());
+        }
     }
+//
+//    public static void toast(Context context, String s){
+//        Toast.makeText(context, s, Toast.LENGTH_SHORT).show();
+//    }
 
     private void showMessageDialog(String errorMsg, final boolean isError){
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setMessage(errorMsg);
-        builder.setTitle("程序错误");
-        builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                messageDialog = null;
-                dialog.dismiss();
-                if(isError)
-                    finish();
-            }
-        });
-        messageDialog = builder.create();
-        messageDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                messageDialog = null;
-            }
-        });
-        messageDialog.show();
+        if(isFinishing()){
+            return;
+        }
+        try{
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage(errorMsg);
+            builder.setTitle("提示");
+            messageDialog = builder.create();
+            messageDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+                @Override
+                public void onDismiss(DialogInterface dialog) {
+                    messageDialog = null;
+                }
+            });
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if(messageDialog!=null) messageDialog.dismiss();
+                }
+            }, 2000);
+            messageDialog.show();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
     }
 
     private void showMenu(){
@@ -684,7 +682,6 @@ public class CameraActivity extends Activity{
 
     @Override
     protected void onDestroy() {
-        SpotManager.getInstance(this).onAppExit();
         super.onDestroy();
     }
 }
