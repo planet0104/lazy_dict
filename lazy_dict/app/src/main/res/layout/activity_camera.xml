@@ -88,158 +88,163 @@
         </LinearLayout>
     </FrameLayout>
     <!-- 截屏 -->
-    <FrameLayout
+    <LinearLayout
         android:visibility="gone"
         android:id="@+id/fl_capture"
+        android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-        <ImageView
-            android:id="@+id/iv_capture"
-            android:scaleType="centerCrop"
-            android:src="@mipmap/ic_launcher"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-        <View
-            android:background="@color/translucent"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-        <cn.jy.lazydict.ScrollLinearLayout
-            android:orientation="vertical"
-            android:id="@+id/sl_clip_rect"
-            android:gravity="center"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
-            <FrameLayout
-                android:layout_gravity="center"
-                android:layout_width="190dp"
-                android:layout_height="190dp">
-                <ImageView
-                    android:id="@+id/iv_area"
-                    android:layout_marginTop="64dp"
-                    android:layout_marginBottom="42dp"
-                    android:layout_marginLeft="27dp"
-                    android:layout_marginRight="57dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-                <ImageView
-                    android:visibility="invisible"
-                    android:id="@+id/iv_find"
-                    android:layout_marginTop="80dp"
-                    android:layout_marginLeft="55dp"
-                    android:src="@drawable/find"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp" />
-                <ImageView
-                    android:layout_gravity="center"
-                    android:src="@drawable/tv_trans"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-                <ImageView
-                    android:id="@+id/iv_switch_red_2"
-                    android:layout_marginLeft="144dp"
-                    android:layout_marginTop="104dp"
-                    android:src="@drawable/dot_red"
-                    android:layout_width="9.5dp"
-                    android:layout_height="9.5dp" />
-            </FrameLayout>
-        </cn.jy.lazydict.ScrollLinearLayout>
-        <ScrollView
-            android:layout_marginTop="130dp"
-            android:layout_marginLeft="10dp"
-            android:layout_marginRight="20dp"
-            android:layout_marginBottom="80dp"
-            android:layout_width="90dp"
-            android:layout_height="wrap_content">
-            <LinearLayout
-                android:id="@+id/ll_lines"
-                android:orientation="vertical"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content">
-
-            </LinearLayout>
-        </ScrollView>
         <FrameLayout
-            android:id="@+id/ll_mean"
-            android:visibility="visible"
-            android:paddingTop="60dp"
-            android:paddingLeft="10dp"
-            android:layout_marginTop="130dp"
-            android:layout_marginLeft="105dp"
-            android:layout_marginRight="10dp"
-            android:layout_marginBottom="100dp"
-            android:background="@drawable/bg_mean"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
-            <WebView
-                android:id="@+id/wv_mean"
+            <ImageView
+                android:id="@+id/iv_capture"
+                android:scaleType="centerCrop"
+                android:src="@mipmap/ic_launcher"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
-        </FrameLayout>
-        <LinearLayout
-            android:gravity="right|center_vertical"
-            android:orientation="vertical"
-            android:layout_marginTop="130dp"
-            android:layout_marginLeft="105dp"
-            android:layout_marginRight="10dp"
-            android:layout_width="match_parent"
-            android:paddingTop="8dp"
-            android:layout_height="wrap_content">
-            <TextView
-                android:id="@+id/tv_help"
-                android:text="帮助(H)"
-                android:textSize="15dp"
-                android:textColor="#444a56"
-                android:paddingRight="10dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
-            <LinearLayout
-                android:alpha="0"
-                android:id="@+id/ll_menu"
-                android:background="@drawable/bg_menu"
-                android:layout_marginTop="5dp"
+            <View
+                android:background="@color/translucent"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+            <cn.jy.lazydict.ScrollLinearLayout
                 android:orientation="vertical"
-                android:padding="0dp"
-                android:layout_marginRight="2dp"
-                android:layout_width="wrap_content"
+                android:id="@+id/sl_clip_rect"
+                android:gravity="center"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                <FrameLayout
+                    android:layout_gravity="center"
+                    android:layout_width="190dp"
+                    android:layout_height="190dp">
+                    <ImageView
+                        android:id="@+id/iv_area"
+                        android:layout_marginTop="64dp"
+                        android:layout_marginBottom="42dp"
+                        android:layout_marginLeft="27dp"
+                        android:layout_marginRight="57dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                    <ImageView
+                        android:visibility="invisible"
+                        android:id="@+id/iv_find"
+                        android:layout_marginTop="80dp"
+                        android:layout_marginLeft="55dp"
+                        android:src="@drawable/find"
+                        android:layout_width="50dp"
+                        android:layout_height="50dp" />
+                    <ImageView
+                        android:layout_gravity="center"
+                        android:src="@drawable/tv_trans"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                    <ImageView
+                        android:id="@+id/iv_switch_red_2"
+                        android:layout_marginLeft="144dp"
+                        android:layout_marginTop="104dp"
+                        android:src="@drawable/dot_red"
+                        android:layout_width="9.5dp"
+                        android:layout_height="9.5dp" />
+                </FrameLayout>
+            </cn.jy.lazydict.ScrollLinearLayout>
+            <ScrollView
+                android:layout_marginTop="130dp"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="20dp"
+                android:layout_marginBottom="80dp"
+                android:layout_width="90dp"
+                android:layout_height="wrap_content">
+                <LinearLayout
+                    android:id="@+id/ll_lines"
+                    android:orientation="vertical"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                </LinearLayout>
+            </ScrollView>
+            <FrameLayout
+                android:id="@+id/ll_mean"
+                android:visibility="visible"
+                android:paddingTop="60dp"
+                android:paddingLeft="10dp"
+                android:layout_marginTop="130dp"
+                android:layout_marginLeft="105dp"
+                android:layout_marginRight="10dp"
+                android:layout_marginBottom="100dp"
+                android:background="@drawable/bg_mean"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                <WebView
+                    android:id="@+id/wv_mean"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </FrameLayout>
+            <LinearLayout
+                android:gravity="right|center_vertical"
+                android:orientation="vertical"
+                android:layout_marginTop="130dp"
+                android:layout_marginLeft="105dp"
+                android:layout_marginRight="10dp"
+                android:layout_width="match_parent"
+                android:paddingTop="8dp"
                 android:layout_height="wrap_content">
                 <TextView
-                    android:id="@+id/tv_up_search"
-                    android:paddingRight="12dp"
-                    android:paddingLeft="12dp"
-                    android:paddingTop="7dp"
-                    android:paddingBottom="5dp"
-                    android:text="高级搜索"
+                    android:id="@+id/tv_help"
+                    android:text="帮助(H)"
                     android:textSize="15dp"
-                    android:textColor="#fff"
+                    android:textColor="#444a56"
+                    android:paddingRight="10dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
-                <View
-                    android:background="#fff"
-                    android:layout_width="match_parent"
-                    android:layout_height="1px" />
-                <TextView
-                    android:id="@+id/tv_about"
-                    android:paddingTop="3dp"
-                    android:paddingBottom="3dp"
-                    android:paddingRight="12dp"
-                    android:paddingLeft="12dp"
-                    android:text="关于"
-                    android:textSize="15dp"
-                    android:textColor="#fff"
+                <LinearLayout
+                    android:alpha="0"
+                    android:id="@+id/ll_menu"
+                    android:background="@drawable/bg_menu"
+                    android:layout_marginTop="5dp"
+                    android:orientation="vertical"
+                    android:padding="0dp"
+                    android:layout_marginRight="2dp"
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/tv_up_search"
+                        android:paddingRight="12dp"
+                        android:paddingLeft="12dp"
+                        android:paddingTop="7dp"
+                        android:paddingBottom="5dp"
+                        android:text="高级搜索"
+                        android:textSize="15dp"
+                        android:textColor="#fff"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                    <View
+                        android:background="#fff"
+                        android:layout_width="match_parent"
+                        android:layout_height="1px" />
+                    <TextView
+                        android:id="@+id/tv_about"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp"
+                        android:paddingRight="12dp"
+                        android:paddingLeft="12dp"
+                        android:text="关于"
+                        android:textSize="15dp"
+                        android:textColor="#fff"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
             </LinearLayout>
-        </LinearLayout>
-        <!-- 切换到预览 -->
-        <ImageButton
-            android:id="@+id/btn_preview"
-            android:background="@null"
-            android:src="@drawable/btn_restart_selector"
-            android:layout_marginBottom="20dp"
-            android:layout_width="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_height="wrap_content" />
-    </FrameLayout>
+            <!-- 切换到预览 -->
+            <ImageButton
+                android:id="@+id/btn_preview"
+                android:background="@null"
+                android:src="@drawable/btn_restart_selector"
+                android:layout_marginBottom="20dp"
+                android:layout_width="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_height="wrap_content" />
+        </FrameLayout>
+    </LinearLayout>
     <ImageView
         android:visibility="gone"
         android:id="@+id/iv_test"
