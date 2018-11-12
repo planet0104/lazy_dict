@@ -165,8 +165,7 @@
             <FrameLayout
                 android:id="@+id/ll_mean"
                 android:visibility="visible"
-                android:paddingTop="60dp"
-                android:paddingLeft="10dp"
+                android:padding="0dp"
                 android:layout_marginTop="130dp"
                 android:layout_marginLeft="105dp"
                 android:layout_marginRight="10dp"
@@ -176,64 +175,65 @@
                 android:layout_height="match_parent">
                 <WebView
                     android:id="@+id/wv_mean"
+                    android:layout_marginTop="60dp"
+                    android:layout_marginRight="5dp"
+                    android:layout_marginLeft="10dp"
+                    android:layout_marginBottom="10dp"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
-            </FrameLayout>
-            <LinearLayout
-                android:gravity="right|center_vertical"
-                android:orientation="vertical"
-                android:layout_marginTop="130dp"
-                android:layout_marginLeft="105dp"
-                android:layout_marginRight="10dp"
-                android:layout_width="match_parent"
-                android:paddingTop="8dp"
-                android:layout_height="wrap_content">
-                <TextView
-                    android:id="@+id/tv_help"
-                    android:text="帮助(H)"
-                    android:textSize="15dp"
-                    android:textColor="#444a56"
-                    android:paddingRight="10dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
                 <LinearLayout
-                    android:alpha="0"
-                    android:id="@+id/ll_menu"
-                    android:background="@drawable/bg_menu"
-                    android:layout_marginTop="5dp"
+                    android:layout_marginTop="10dp"
+                    android:gravity="end|center_vertical"
                     android:orientation="vertical"
-                    android:padding="0dp"
-                    android:layout_marginRight="2dp"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content">
                     <TextView
-                        android:id="@+id/tv_up_search"
-                        android:paddingRight="12dp"
-                        android:paddingLeft="12dp"
-                        android:paddingTop="7dp"
-                        android:paddingBottom="5dp"
-                        android:text="高级搜索"
+                        android:id="@+id/tv_help"
+                        android:text="帮助(H)"
                         android:textSize="15dp"
-                        android:textColor="#fff"
+                        android:textColor="#444a56"
+                        android:paddingRight="10dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content" />
-                    <View
-                        android:background="#fff"
-                        android:layout_width="match_parent"
-                        android:layout_height="1px" />
-                    <TextView
-                        android:id="@+id/tv_about"
-                        android:paddingTop="3dp"
-                        android:paddingBottom="3dp"
-                        android:paddingRight="12dp"
-                        android:paddingLeft="12dp"
-                        android:text="关于"
-                        android:textSize="15dp"
-                        android:textColor="#fff"
+                    <LinearLayout
+                        android:alpha="0"
+                        android:id="@+id/ll_menu"
+                        android:background="@drawable/bg_menu"
+                        android:layout_marginTop="5dp"
+                        android:orientation="vertical"
+                        android:padding="0dp"
+                        android:layout_marginRight="2dp"
                         android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:id="@+id/tv_up_search"
+                            android:paddingRight="12dp"
+                            android:paddingLeft="12dp"
+                            android:paddingTop="7dp"
+                            android:paddingBottom="5dp"
+                            android:text="高级搜索"
+                            android:textSize="15dp"
+                            android:textColor="#fff"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                        <View
+                            android:background="#fff"
+                            android:layout_width="match_parent"
+                            android:layout_height="1px" />
+                        <TextView
+                            android:id="@+id/tv_about"
+                            android:paddingTop="3dp"
+                            android:paddingBottom="3dp"
+                            android:paddingRight="12dp"
+                            android:paddingLeft="12dp"
+                            android:text="关于"
+                            android:textSize="15dp"
+                            android:textColor="#fff"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
+            </FrameLayout>
             <!-- 切换到预览 -->
             <ImageButton
                 android:id="@+id/btn_preview"

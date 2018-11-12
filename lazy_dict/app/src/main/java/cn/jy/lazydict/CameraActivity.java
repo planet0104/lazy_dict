@@ -5,10 +5,8 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -23,6 +21,8 @@ import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -38,8 +38,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 import static cn.jy.lazydict.Toolkit.MSG_TESS_RECOGNIZE_LINE;
 import static cn.jy.lazydict.Toolkit.loadText;
@@ -53,7 +51,10 @@ public class CameraActivity extends Activity {
     ImageView iv_noise;
     private AnimationDrawable animDot;
     private AnimationDrawable animDotSlow;
-    AlertDialog messageDialog;
+    //AlertDialog messageDialog;
+
+    Toast messageToast;
+    TextView tv_toast;
 
     //--------- 预览相关 ------------
     FrameLayout fl_preview;
@@ -95,12 +96,27 @@ public class CameraActivity extends Activity {
      */
     Bitmap bitmapRect;
 
+    boolean startView = false;
+
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
+        //--------------- 加固 ----------------------
+        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
+            finish();
+            return;
+        }
+        //-------------------------------------------
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
+        LayoutInflater inflater = getLayoutInflater();
+        View layout = inflater.inflate(R.layout.v_toast, null);
+        tv_toast = layout.findViewById(R.id.tv_info);
+        messageToast = new Toast(this);
+        messageToast.setGravity(Gravity.CENTER, 0, 0);
+        messageToast.setDuration(Toast.LENGTH_LONG);
+        messageToast.setView(layout);
 
         ll_lines = findViewById(R.id.ll_lines);
         ll_mean = findViewById(R.id.ll_mean);
@@ -136,7 +152,9 @@ public class CameraActivity extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if(request.getUrl().toString().contains("up.search")){
+                String op = request.getUrl().toString();
+                Log.d(TAG, "op="+op);
+                if(op.contains("up.search")){
                     if(bitmapRect==null){
                         showMessageDialog("图片有误，请重新拍照识别。", false);
                     }else{
@@ -147,6 +165,26 @@ public class CameraActivity extends Activity {
                     }
                     return true;
                 }
+                if(op.contains("split.search")){
+                    //如果正在识别中，不进行自动拆分，只有用户点击的时候才自动拆分
+                    if(animDot.isRunning()){
+                        showMessageDialog("正在查询中，请稍后再试", false);
+                    }else{
+                        tessHandler.sendEmptyMessage(Toolkit.MSG_SPLIT_SEARCH);
+                    }
+                    return true;
+                }
+                if(op.contains("click.help")){
+                    Log.d(TAG, "打开帮助.");
+                    showMenu();
+                    return true;
+                }
+                if(op.contains("click.up_search")){
+                    Log.d(TAG, "打开高级搜索.");
+                    upSearch();
+                    return  true;
+                }
+                startView = true;
                 Intent intent = new Intent();
                 intent.setAction("android.intent.action.VIEW");
                 intent.setData(request.getUrl());
@@ -266,6 +304,7 @@ public class CameraActivity extends Activity {
                         iv_switch_red_2.setBackgroundResource(R.drawable.dot_red);
                         if(ll_lines.getChildCount()==0){
                             showMessageDialog("没有找到文字", false);
+                            showEmptyMean();
                         }
                         Log.d(TAG, "识别完毕.");
                         break;
@@ -308,7 +347,7 @@ public class CameraActivity extends Activity {
                             line_layout.setLayoutParams(llp);
                             line_layout.setBackgroundResource(tvbg);
                             String[] pinyin = null;
-                            try{ pinyin= Toolkit.pinyin(text); }catch (Exception e1){e1.printStackTrace();}
+                            try{ pinyin= Toolkit.pinyin(CameraActivity.this, text); }catch (Exception e1){e1.printStackTrace();}
                             char[] chars = text.toCharArray();
                             for(int i=0; i<text.length(); i++){
                                 PinYinTextView tv = new PinYinTextView(CameraActivity.this);
@@ -337,23 +376,23 @@ public class CameraActivity extends Activity {
                                     if(text.length()==1){
                                         //查字
                                         Word word = null;
-                                        try{ word = Toolkit.search(text); }catch (Exception e){ e.printStackTrace(); }
+                                        try{ word = Toolkit.search(CameraActivity.this, text); }catch (Exception e){ e.printStackTrace(); }
                                         if(word == null){
                                             Toolkit.loadText(wv_mean, "正在网络上搜索...");
                                             Toolkit.checkBaiKe(text, tessHandler);
                                             //wv_mean
                                         }else{
-                                            Toolkit.loadText(wv_mean, word.toString());
+                                            Toolkit.loadText(wv_mean, word.toString()+"<br/><a href=\""+"https://baike.baidu.com/item/"+text+"\">查看<i><b>百度百科</b></i>解释</a>");
                                         }
                                     }else{
                                         //查词
                                         String mean = null;
-                                        try{ mean = Toolkit.searchWords(text); }catch (Exception e){ e.printStackTrace(); }
+                                        try{ mean = Toolkit.searchWords(CameraActivity.this, text); }catch (Exception e){ e.printStackTrace(); }
                                         if(mean == null){
                                             Toolkit.loadText(wv_mean, "正在网络上搜索...");
                                             Toolkit.checkBaiKe(text, tessHandler);
                                         }else{
-                                            Toolkit.loadText(wv_mean, mean);
+                                            Toolkit.loadText(wv_mean, mean+"<br/><a href=\""+"https://baike.baidu.com/item/"+text+"\">查看<i><b>百度百科</b></i>解释</a>");
                                         }
                                     }
                                 }
@@ -379,36 +418,49 @@ public class CameraActivity extends Activity {
                         ll_btn_capture.setVisibility(View.VISIBLE);
                         requestCameraPermission();
                         break;
-                    case Toolkit.MSG_BAIKE_SEARCH_RESULT:
-                        if(msg.obj==null){
-                            Toolkit.loadText(wv_mean, "未找到解释");
-                            //拆分
-                            ViewGroup line_layout = null;
-                            int i;
-                            for(i=0; i<ll_lines.getChildCount(); i++){
-                                line_layout  = (ViewGroup) ll_lines.getChildAt(i);
-                                if(line_layout.isSelected() && line_layout.getChildCount()>1){
-                                    break;
-                                }
+                    case Toolkit.MSG_SPLIT_SEARCH:
+                        //拆分查询
+                        ViewGroup line_layout = null;
+                        int i;
+                        for(i=0; i<ll_lines.getChildCount(); i++){
+                            line_layout  = (ViewGroup) ll_lines.getChildAt(i);
+                            if(line_layout.isSelected() && line_layout.getChildCount()>1){
+                                break;
                             }
-                            if(line_layout!=null){
-                                ll_mean.setVisibility(View.GONE);
-                                ll_lines.removeView(line_layout);
-                                String text = (String) line_layout.getTag();
-                                String[] line = new String[text.length()];
+                        }
+                        if(line_layout!=null){
+                            ll_mean.setVisibility(View.GONE);
+                            ll_lines.removeView(line_layout);
+                            String text = (String) line_layout.getTag();
+
+                            //如果是四个字，拆分成两个词
+                            String[] line;
+                            if(text.length() == 4){
+                                line = new String[2];
+                                char[] chars = text.toCharArray();
+                                line[1] = chars[0]+""+chars[1];
+                                line[0] = chars[2]+""+chars[3];
+                            }else{
+                                line = new String[text.length()];
                                 char[] chars = text.toCharArray();
                                 int ci = chars.length;
                                 for(char c : chars){
                                     ci -= 1;
                                     line[ci] = c+"";
                                 }
-                                //返回一行的分词结果
-                                msg = Message.obtain();
-                                msg.what = MSG_TESS_RECOGNIZE_LINE;
-                                msg.obj = line;
-                                msg.arg1 = i;//在第几个位置插入
-                                tessHandler.sendMessage(msg);
                             }
+                            //返回一行的分词结果
+                            msg = Message.obtain();
+                            msg.what = MSG_TESS_RECOGNIZE_LINE;
+                            msg.obj = line;
+                            msg.arg1 = i;//在第几个位置插入
+                            tessHandler.sendMessage(msg);
+                        }
+                        break;
+                    case Toolkit.MSG_BAIKE_SEARCH_RESULT:
+                        //Toolkit.loadText(wv_mean, "未找到解释<br /><a href=\"http://split.search\"><b>拆分查询</b></a>");
+                        if(msg.obj==null){
+                            Toolkit.loadText(wv_mean, "未找到解释<br /><a href=\"http://split.search\">拆分查询</a>");
                         }else{
                             String[] res = (String[]) msg.obj;
                             Toolkit.loadText(wv_mean, res[1]);
@@ -450,11 +502,15 @@ public class CameraActivity extends Activity {
         tv_up_search.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                hideMenu();
-                String about = "<h3>高级搜索</h1><b>如果文字识别有误，或者无法识别请使用此功能。</b><br/><i>高级搜索</i>使用免费版百度文字识别API，由于每天使用次数有限，请优先使用普通搜索！<br/> <a href=\"http://up.search\">点击这里<i>开始高级搜索</i></a>";
-                loadText(wv_mean, about);
+                upSearch();
             }
         });
+    }
+
+    private void upSearch(){
+        hideMenu();
+        String about = "<h3>高级搜索</h3><b>如果文字识别有误，或者无法识别请使用此功能。</b><br/><i>高级搜索</i>使用免费版百度文字识别API，由于每天使用次数有限，请优先使用普通搜索！<br/> <a href=\"http://up.search\">点击这里<i>开始高级搜索</i></a>";
+        loadText(wv_mean, about);
     }
 
     private void showSurfaceViewAndStart(){
@@ -524,7 +580,7 @@ public class CameraActivity extends Activity {
         isPreview = false;
         animDotSlow.stop();
     }
-
+    //ppid = 427
     private void capture(){
         Log.d(TAG, "capture.");
         if(previewFrame!=null && camera!=null){
@@ -535,7 +591,7 @@ public class CameraActivity extends Activity {
             Camera.Size size = camera.getParameters().getPreviewSize();
             long t = System.currentTimeMillis();
             try {
-                capture = Toolkit.decodeYUV420SP(previewFrame, size.width, size.height, info.orientation);
+                capture = Toolkit.decodeYUV420SP(CameraActivity.this, previewFrame, size.width, size.height, info.orientation);
                 iv_capture.setImageBitmap(capture);
                 Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
                 releaseCamera();//释放相机
@@ -608,61 +664,38 @@ public class CameraActivity extends Activity {
     protected void onStop() {
         releaseCamera();
         super.onStop();
-        SharedPreferencesHelper.saveLong(this, "SPF_KEY_LAST_OPEN", System.currentTimeMillis());
+        if(startView){
+            startView = false;
+        }else{
+            finish();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if(messageDialog==null){
-            surface_view.post(new Runnable() {
-                @Override
-                public void run() {
-                    if(camera==null && isPreview){
-                        //initCamera();
-                        Toolkit.initTessTwo(CameraActivity.this, tessHandler);
-                    }
+        surface_view.post(new Runnable() {
+            @Override
+            public void run() {
+                if(camera==null && isPreview){
+                    //initCamera();
+                    Toolkit.initTessTwo(CameraActivity.this, tessHandler);
                 }
-            });
-        }
-
-        //距离上次使用超过5分钟，重新显示启动页面
-        long lastUse = SharedPreferencesHelper.getLong(this, MyApp.SPF_KEY_LAST_OPEN);
-        long elapsed = System.currentTimeMillis()-lastUse;
-        if(elapsed>1000*60*5){
-            startActivity(new Intent(this, SplashActivity.class));
-            SharedPreferencesHelper.saveLong(this, MyApp.SPF_KEY_LAST_OPEN, System.currentTimeMillis());
-        }
+            }
+        });
     }
-//
-//    public static void toast(Context context, String s){
-//        Toast.makeText(context, s, Toast.LENGTH_SHORT).show();
-//    }
 
     private void showMessageDialog(String errorMsg, final boolean isError){
-        if(isFinishing()){
-            return;
-        }
         try{
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(errorMsg);
-            builder.setTitle("提示");
-            messageDialog = builder.create();
-            messageDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                @Override
-                public void onDismiss(DialogInterface dialog) {
-                    messageDialog = null;
-                }
-            });
-            new Handler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if(messageDialog!=null) messageDialog.dismiss();
-                }
-            }, 2000);
-            messageDialog.show();
+            if(tv_toast!=null){
+                tv_toast.setText(errorMsg);
+                messageToast.show();
+            }
         }catch (Exception e){
             e.printStackTrace();
+        }
+        if(isError){
+            finish();
         }
     }
 
@@ -678,6 +711,12 @@ public class CameraActivity extends Activity {
         ObjectAnimator objectAnimator = ObjectAnimator.ofFloat(ll_menu, "alpha", 1f, 0f);
         objectAnimator.setDuration(400);
         objectAnimator.start();
+    }
+
+    private void showEmptyMean(){
+        ll_mean.setVisibility(View.VISIBLE);
+        String about = "<h3>没有找到文字</h3>拍照时文字必须水平方向，图片中文字越少识别速度越快。如果仍不能找到文字，请点击右上方“<a href=\"http://click.help\">帮助(U)</a>”，然后选择“<a href=\"http://click.up_search\">高级搜索</a>”";
+        loadText(wv_mean, about);
     }
 
     @Override

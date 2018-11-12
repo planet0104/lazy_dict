@@ -49,7 +49,7 @@ public class Toolkit {
      * @param cameraOrientation
      * @return
      */
-    public static native Bitmap decodeYUV420SP(byte[] data, int width, int height, int cameraOrientation) throws Exception;
+    public static native Bitmap decodeYUV420SP(Context activity, byte[] data, int width, int height, int cameraOrientation) throws Exception;
 
     /**
      * 根据坐标选择一个文字块
@@ -75,7 +75,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native void binary(Bitmap bitmap) throws Exception;
+    public static native void binary(Context activity, Bitmap bitmap) throws Exception;
 
     /**
      * 分割图片行
@@ -83,7 +83,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native RectF[] split(Bitmap bitmap) throws Exception;
+    public static native RectF[] split(Context activity, Bitmap bitmap) throws Exception;
 
     /**
      * 结巴分词
@@ -91,7 +91,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native String[] jiebaCut(String text) throws Exception;
+    public static native String[] jiebaCut(Context activity, String text) throws Exception;
 
     /**
      * 汉字转拼音
@@ -99,7 +99,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native String[] pinyin(String text) throws Exception;
+    public static native String[] pinyin(Context activity, String text) throws Exception;
 
     /**
      * 查询汉字释义
@@ -107,7 +107,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native Word search(String word) throws Exception;
+    public static native Word search(Activity activity, String word) throws Exception;
 
     /**
      * 检查百度百科是否存在此词条
@@ -160,7 +160,7 @@ public class Toolkit {
      * @return
      * @throws Exception
      */
-    public static native String searchWords(String words) throws Exception;
+    public static native String searchWords(Activity activity, String words) throws Exception;
 
     public static Rect getLocationInParent(View view, ViewGroup parent){
         int[] loc = new int[2];
@@ -181,6 +181,7 @@ public class Toolkit {
     public static final int MSG_TESS_INIT_ERROR = 11;
 
     public static final int MSG_BAIKE_SEARCH_RESULT = 20;
+    public static final int MSG_SPLIT_SEARCH = 30;
 
     /**
      * 识别图片文字
@@ -193,7 +194,7 @@ public class Toolkit {
             @Override
             public void run() {
                 try {
-                    RectF[] splitRect = Toolkit.split(bitmap);
+                    RectF[] splitRect = Toolkit.split(activity, bitmap);
                     //识别
                     MyApp.getTessApi(activity).setPageSegMode(TessBaseAPI.PageSegMode.PSM_SINGLE_LINE);
 
@@ -208,7 +209,7 @@ public class Toolkit {
                         }
                         long t = System.currentTimeMillis();
                         Bitmap rb = Bitmap.createBitmap(bitmap, (int)lineRect.left, (int)lineRect.top, (int)(lineRect.right-lineRect.left), (int)(lineRect.bottom-lineRect.top));
-                        Toolkit.binary(rb);
+                        Toolkit.binary(activity, rb);
                         MyApp.getTessApi(activity).setImage(rb);
                         String line = "";
                         String _text = MyApp.getTessApi(activity).getUTF8Text();
@@ -231,7 +232,7 @@ public class Toolkit {
                         //------------------------------------------------------------------
                         Log.d(TAG, "耗时:"+(System.currentTimeMillis()-t)+"毫秒 text="+line);
                         long ft = System.currentTimeMillis();
-                        String[] words = Toolkit.jiebaCut(line);
+                        String[] words = Toolkit.jiebaCut(activity, line);
                         Log.d(TAG, "分词结果:"+Arrays.toString(words)+" 耗时:"+(System.currentTimeMillis()-ft)+"ms");
                         //返回一行的分词结果
                         msg = Message.obtain();
@@ -250,7 +251,7 @@ public class Toolkit {
                     //识别出错
                     Message msg = Message.obtain();
                     msg.what = MSG_TESS_RECOGNIZE_ERROR;
-                    msg.obj = e;
+                    msg.obj = new Exception("识别出错");
                     handler.sendMessage(msg);
                 }
             }
@@ -333,7 +334,7 @@ public class Toolkit {
                                         sb.append(c);
                                     }
                                 }
-                                String[] words = Toolkit.jiebaCut(sb.toString());
+                                String[] words = Toolkit.jiebaCut(activity, sb.toString());
                                 Log.d(TAG, "分词结果:"+Arrays.toString(words));
                                 //返回一行的分词结果
                                 Message msg = Message.obtain();

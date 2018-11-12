@@ -2,6 +2,7 @@ package cn.jy.lazydict;
 
 import android.app.Activity;
 import android.app.Application;
+import android.content.pm.ApplicationInfo;
 import android.util.Log;
 
 import com.googlecode.tesseract.android.TessBaseAPI;
