@@ -26,10 +26,13 @@ extern crate jieba_rs;
 extern crate serde_derive;
 extern crate serde;
 extern crate bincode;
+extern crate base64;
+
 
 use std::collections::HashMap;
 use bincode::deserialize;
 use jieba_rs::Jieba;
+use base64::decode;
 
 //use std::sync::mpsc::{ Sender, channel};
 // use std::sync::{Arc, Mutex};
@@ -61,15 +64,27 @@ lazy_static! {
 
 //JNI加载完成
 #[no_mangle]
-pub extern fn JNI_OnLoad(_vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jint{
+pub extern fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(LEVEL));
+	//---------- 加固 ---------------
+	let env = vm.get_env().unwrap();
+	//获取ApplicationContext
+	let app_info = env.call_method(activity, &String::from_utf8(decode("Z2V0QXBwbGljYXRpb25JbmZv").unwrap()).unwrap(), &String::from_utf8(decode("KClMYW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbzs=").unwrap()).unwrap(), &[]).unwrap().l().unwrap();
+	let flags = env.get_field(app_info, &String::from_utf8(decode("ZmxhZ3M=").unwrap()).unwrap(), &String::from_utf8(decode("SQ==").unwrap()).unwrap()).unwrap().i().unwrap();
+	let app_info_class = env.find_class(&String::from_utf8(decode("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw==").unwrap()).unwrap()).unwrap();
+	let debuggable = env.get_static_field(app_info_class, &String::from_utf8(decode("RkxBR19ERUJVR0dBQkxF").unwrap()).unwrap(), &String::from_utf8(decode("SQ==").unwrap()).unwrap()).unwrap().i().unwrap();
+	if flags&debuggable !=0{
+		//不允许调试
+		
+	}
+	//------------------------------
 	info!("JNI_OnLoad.");
 	jni::sys::JNI_VERSION_1_6
 }
 
 //二值化
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject){
+pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, activity:JObject, bitmap: JObject){
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, mut pixels|{
 			//只支持argb888格式
@@ -137,7 +152,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 
 //查询汉字释义
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JClass, jword: jni::objects::JString) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JClass, activity:JObject, jword: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("查询汉字 {:?}", err) };
 	let mut meaning = JObject::null();
 	let result = (||->Result<(), String> {
@@ -165,7 +180,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JCl
 
 //查询词语释义
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity: JClass, activity:JObject, text: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("查询词语 {:?}", err) };
 	let mut meaning = JObject::null();
 	let result = (||->Result<(), String> {
@@ -186,7 +201,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity
 
 //汉字转拼音
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JClass, activity:JObject, text: jni::objects::JString) -> jni::sys::jobject{
 	let mje = |err|{ format!("pinyin {:?}", err) };
 	let mut words_array = None;
 	let result = (||->Result<(), String> {
@@ -222,10 +237,23 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 }
 //结巴分词
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _activity: JClass, text: jni::objects::JString) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _class: JClass, activity:JObject, text: jni::objects::JString) -> jni::sys::jobject{
+	debug!("获取到 jiebaCout>>>>>>>>>>>>>>>>>>");
+
 	let mje = |err|{ format!("jiebaCut {:?}", err) };
 	let mut words_array = None;
 	let result = (||->Result<(), String> {
+		//---------- 加固 ---------------
+		// let app_info = env.call_method(activity, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;", &[]).unwrap().l().unwrap();
+		// let flags = env.get_field(app_info, "flags", "I").unwrap().i().unwrap();
+		// let app_info_class = env.find_class("android/content/pm/ApplicationInfo").unwrap();
+		// let debuggable = env.get_static_field(app_info_class, "FLAG_DEBUGGABLE", "I").unwrap().i().unwrap();
+		// if flags&debuggable !=0{
+		// 	//不允许调试
+		// 	panic!()
+		// }
+		//------------------------------
+		
 		let text: String = env.get_string(text).map_err(mje)?.into();
 		let words = JIEBA.cut(&text, false);
 
@@ -254,7 +282,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _activity: J
 
 //拆分文字块
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JClass, bitmap: JObject) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JClass, activity:JObject, bitmap: JObject) -> jni::sys::jobject{
 	let mje = |err|{ format!("拆分文字块 {:?}", err) };
 	let mut rects = None;
 
@@ -357,7 +385,7 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _act
 
 //YUV420SP转Bitmap
 #[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_decodeYUV420SP<'a>(env: JNIEnv, _activity: JClass, data: jbyteArray, width:jint, height:jint, camera_orientation: jint) -> jni::sys::jobject{
+pub extern fn Java_cn_jy_lazydict_Toolkit_decodeYUV420SP<'a>(env: JNIEnv, _activity: JClass, activity:JObject, data: jbyteArray, width:jint, height:jint, camera_orientation: jint) -> jni::sys::jobject{
 	let mje = |err|{ format!("转码失败 {:?}", err) };
 	let mut bitmap = None;
 	let result = (||->Result<(), String> {

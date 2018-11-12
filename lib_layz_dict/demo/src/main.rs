@@ -5,12 +5,14 @@ use std::time::{Duration, Instant};
 
 // extern crate serde_json;
 // extern crate bincode;
-extern crate jieba_rs;
+// extern crate jieba_rs;
 
-use jieba_rs::Jieba;
+// use jieba_rs::Jieba;
 
 // use serde_json::{Value, Error};
 // use bincode::{serialize, deserialize};
+extern crate base64;
+use base64::{encode, decode};
 
 fn main(){
     // let word_map: Vec<Value> = serde_json::from_slice(WORD).unwrap();
@@ -22,9 +24,14 @@ fn main(){
     //         break;
     //     }
     // }
-    let jieba = Jieba::new();
-    let words = jieba.cut("联系电话", false);
-    println!("{:?}", words);
+    // let jieba = Jieba::new();
+    // let words = jieba.cut("联系电话", false);
+    // println!("{:?}", words);
+    let a = b"hello world";
+    let b = "aGVsbG8gd29ybGQ=";
+
+    println!("{}",encode(a));
+    println!("{:?}", &String::from_utf8(decode(b).unwrap()));
 }
 
 pub fn duration_to_milis(duration: &Duration) -> f64 {

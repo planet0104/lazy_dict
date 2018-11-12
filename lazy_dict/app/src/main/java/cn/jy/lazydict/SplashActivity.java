@@ -2,9 +2,11 @@ package cn.jy.lazydict;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.widget.Toast;
 
 import com.google.android.gms.ads.AdRequest;
@@ -15,26 +17,43 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import static cn.jy.lazydict.Toolkit.MSG_TESS_INIT_SUCCESS;
-import static com.google.android.gms.ads.AdSize.LARGE_BANNER;
 
 public class SplashActivity extends Activity{
-    private long startTime = 0;
+    static final String TAG = "SplashActivity";
     private AdView mAdView0;
-    private AdView mAdView1;
-    private AdView mAdView2;
-    private AdView mAdView3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        //--------------- 加固 ----------------------
+//        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
+//            finish();
+//            return;
+//        }
+        //-------------------------------------------
         super.onCreate(savedInstanceState);
-        startTime = System.currentTimeMillis();
+
+        Log.d(TAG, "获取到 getApplicationInfo().flags="+getApplicationInfo().flags);
+        Log.d(TAG, "获取到 ApplicationInfo.FLAG_DEBUGGABLE="+ApplicationInfo.FLAG_DEBUGGABLE);
+
+        try {
+            Toolkit.jiebaCut(this, "字");
+        } catch (Exception e) {
+            Log.d(TAG, "获取到 出错！"+e.getStackTrace());
+            e.printStackTrace();
+        }
+
+        //        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
+//            Log.d(TAG, "禁止调试!");
+//            showMessageDialog("禁止调试", true);
+//            return;
+//        }
+        int pid = android.os.Process.myPid();
+        Log.d("哈哈", "status pid="+pid);
         //初始化广告
         MobileAds.initialize(this, BuildConfig.AD_APP_ID);
         setContentView(R.layout.activity_splash);
         mAdView0 = findViewById(R.id.adView0);
-        mAdView1 = findViewById(R.id.adView1);
-        mAdView2 = findViewById(R.id.adView2);
-        mAdView3 = findViewById(R.id.adView3);
+
         //初始化
         Toolkit.initTessTwo(this, new Handler(new Handler.Callback() {
             @Override
@@ -48,12 +67,6 @@ public class SplashActivity extends Activity{
         }));
         initJieBa();
         mAdView0.loadAd(getAdRequest());
-        mAdView1.loadAd(getAdRequest());
-        mAdView2.loadAd(getAdRequest());
-        mAdView3.loadAd(getAdRequest());
-
-        //清空计时器
-        SharedPreferencesHelper.saveLong(this, "SPF_KEY_LAST_OPEN", System.currentTimeMillis());
 
         //至少显示5s
         mAdView0.postDelayed(new Runnable() {
@@ -79,16 +92,20 @@ public class SplashActivity extends Activity{
             @Override
             public void run() {
                 try {
-                    Toolkit.jiebaCut("字");
+                    Toolkit.jiebaCut(SplashActivity.this,"字");
                 } catch (Exception e) {
-                    Toast.makeText(SplashActivity.this, "初始化失败!", Toast.LENGTH_LONG).show();
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(SplashActivity.this, "初始化失败!", Toast.LENGTH_LONG).show();
+                            System.exit(0);
+                        }
+                    });
                     e.printStackTrace();
                 }
             }
         }).start();
     }
-
-
 
     private void showAdd(){
         //        try {

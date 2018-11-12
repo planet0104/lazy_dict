@@ -9,6 +9,4 @@
     <string name="error_preview">相机预览失败</string>
     <string name="description_info">信息</string>
     <string name="request_permission">此示例需要相机权限。</string>
-    <string name="camera_error">此设备不支持Camera2 API。</string>
-    <string name="click_to_skip">点击跳过</string>
 </resources>
