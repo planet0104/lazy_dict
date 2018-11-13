@@ -1,5 +1,8 @@
 use std::time::{Duration, Instant};
 
+#[macro_use]
+extern crate stdweb;
+
 // static CI:&[u8] = include_bytes!("../ci.json");
 // static WORD:&[u8] = include_bytes!("../word.json");
 
@@ -13,6 +16,7 @@ use std::time::{Duration, Instant};
 // use bincode::{serialize, deserialize};
 extern crate base64;
 use base64::{encode, decode};
+static HELLO:&[u8] = include_bytes!("../demo.wasm");
 
 fn main(){
     // let word_map: Vec<Value> = serde_json::from_slice(WORD).unwrap();
@@ -27,13 +31,18 @@ fn main(){
     // let jieba = Jieba::new();
     // let words = jieba.cut("联系电话", false);
     // println!("{:?}", words);
-    let a = b"hello world";
-    let b = "aGVsbG8gd29ybGQ=";
+    // let a = b"hello world";
+    // let b = "aGVsbG8gd29ybGQ=";
 
-    println!("{}",encode(a));
-    println!("{:?}", &String::from_utf8(decode(b).unwrap()));
-}
+    println!("{}",encode(&HELLO));
+    // println!("{:?}", &String::from_utf8(decode(b).unwrap()));
 
-pub fn duration_to_milis(duration: &Duration) -> f64 {
-    duration.as_secs() as f64 * 1000.0 + duration.subsec_nanos() as f64 / 1_000_000.0
+    // stdweb::initialize();
+
+    // let message = "Hello, 世界!";
+    // js! {
+    //     alert( @{message} );
+    // }
+
+    // stdweb::event_loop();
 }
