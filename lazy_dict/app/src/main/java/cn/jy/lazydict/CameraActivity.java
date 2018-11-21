@@ -103,10 +103,10 @@ public class CameraActivity extends Activity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         //--------------- 加固 ----------------------
-        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
-            finish();
-            return;
-        }
+//        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
+//            finish();
+//            return;
+//        }
         //-------------------------------------------
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);

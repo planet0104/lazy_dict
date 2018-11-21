@@ -18,6 +18,13 @@ public class MyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        String f = getPackageResourcePath();
+        Log.d(TAG,"getPackageResourcePath>>>>>>>>>>"+f);
+
+        ///  data/app/cn.jy.lazydict-1/base.apk
+
+        ///data/app/cn.jy.lazydict-1/base.apk
     }
 
     public static synchronized TessBaseAPI getTessApi(Activity activity){

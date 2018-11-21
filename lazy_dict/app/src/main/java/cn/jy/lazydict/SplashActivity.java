@@ -1,8 +1,12 @@
 package cn.jy.lazydict;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -19,7 +23,7 @@ import java.util.Date;
 import static cn.jy.lazydict.Toolkit.MSG_TESS_INIT_SUCCESS;
 
 public class SplashActivity extends Activity{
-    static final String TAG = "SplashActivity";
+    static final String TAG = "SplashActivity1";
     private AdView mAdView0;
 
     @Override
