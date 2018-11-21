@@ -2,10 +2,34 @@
 use std::fs::File;
 use zip;
 use std::io::{Write, Read, Result};
+use std::sync::Mutex;
+
+static PROC_SELF_CMD_LINE_SUBSTR_0:&str = "/proc/self";
+static PROC_SELF_CMD_LINE_SUBSTR_1:&str = "/cmdline";
+
+static PROC_SELF_MAPS_SUBSTR_0:&str = "/maps";
+
+static APK_DOT_STR:&str = ".apk";
+static APK_STR:&str = "base.apk";
+
+static MANIFEST_SUBSTR_0:&str = "META-INF";
+static MANIFEST_SUBSTR_1:&str = "/MANIFEST.MF";
+
+//验证内容 1、包名 2、manifest.xml签名 3、classex.dex签名
+
+pub static PKGNAME:&str = "cn.jy.lazydict";
+pub static MANIFEST_XML_SHA1:&str = "RKHLR/UFUS2TtcegKRi0jv9+e+4=";
+pub static CLASSES_DEX_SHA1:&str = "Uvpbv/a/AnqTb+ePdKsX2ebAtWo=";
+
+lazy_static!{
+    static ref RD_PKGNAME:String = get_package_name().unwrap();
+    static ref RD_MANIFEST_XML_SHA1:Mutex<String> = Mutex::new(String::new());
+    static ref RD_CLASSES_DEX_SHA1:Mutex<String> = Mutex::new(String::new());
+}
 
 // 获取包名
 pub fn get_package_name() -> Result<String>{
-    let mut file = File::open("/proc/self/cmdline")?;
+    let mut file = File::open(&format!("{}{}", PROC_SELF_CMD_LINE_SUBSTR_0, PROC_SELF_CMD_LINE_SUBSTR_1))?;
     let mut contents = String::new();
     let _count = file.read_to_string(&mut contents)?;
     Ok(String::from(contents.trim_matches(char::from(0))))
@@ -14,14 +38,15 @@ pub fn get_package_name() -> Result<String>{
 //获取apk路径
 pub fn get_apk_file_path() -> Result<String>{
     let package = get_package_name()?;
-    let mut file = File::open("/proc/self/maps")?;
+    debug!("包名:{}", package);
+    let mut file = File::open(&format!("{}{}", PROC_SELF_CMD_LINE_SUBSTR_0, PROC_SELF_MAPS_SUBSTR_0))?;
     let mut contents = String::new();
     let _count = file.read_to_string(&mut contents)?;
     let mut apk_file = "";
     for line in contents.lines(){
-        if line.contains(".apk") && line.contains(&package){
+        if line.contains(APK_DOT_STR) && line.contains(&package){
             for p in line.split(" "){
-                if p.ends_with("apk"){
+                if p.ends_with(APK_STR){
                     apk_file = p;
                     break;
                 }
@@ -33,13 +58,14 @@ pub fn get_apk_file_path() -> Result<String>{
 
 pub fn get_manifest_mf() -> Result<String>{
     let file = File::open(get_apk_file_path()?)?;
-    trace!("开始解压文件..");
+    //trace!("开始解压文件..");
     let mut archive = zip::ZipArchive::new(file)?;
     let mut manifest_mf = String::new();
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let outpath = file.sanitized_name();
-        if let Some("META-INF/MANIFEST.MF") = outpath.to_str(){
+        let path = &format!("{}{}", MANIFEST_SUBSTR_0, MANIFEST_SUBSTR_1);
+        if path == outpath.to_str().unwrap(){
             let _ = file.read_to_string(&mut manifest_mf)?;
         }
     }

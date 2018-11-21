@@ -27,7 +27,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate bincode;
 extern crate base64;
-
+use std::sync::Mutex;
 
 use std::collections::HashMap;
 use bincode::deserialize;
@@ -56,29 +56,50 @@ struct Word<'a>{
 static CI:&[u8] = include_bytes!("../CI");
 static WORD:&[u8] = include_bytes!("../WORD");
 
+fn decode_base64(s:&str) -> String{
+	String::from_utf8(decode(s).unwrap()).unwrap()
+}
+
+//加固用
+fn check(env:&JNIEnv){
+	// //获取Activity Thread的实例对象
+	let activity_thread_class = env.find_class(decode_base64("YW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ=")).unwrap();
+	//"currentActivityThread", "()Landroid/app/ActivityThread;"
+	let activity_thread = env.call_static_method(activity_thread_class, decode_base64("Y3VycmVudEFjdGl2aXR5VGhyZWFk"), decode_base64("KClMYW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ7"), &[]).unwrap().l().unwrap();
+	// //"getApplication", "()Landroid/app/Application;"
+	let context = env.call_method(activity_thread, decode_base64("Z2V0QXBwbGljYXRpb24="), decode_base64("KClMYW5kcm9pZC9hcHAvQXBwbGljYXRpb247"), &[]).unwrap().l().unwrap();
+
+	let app_info = env.call_method(context, decode_base64("Z2V0QXBwbGljYXRpb25JbmZv"), decode_base64("KClMYW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbzs="), &[]).unwrap().l().unwrap();
+	let flags = env.get_field(app_info, decode_base64("ZmxhZ3M="), decode_base64("SQ==")).unwrap().i().unwrap();
+	let app_info_class = env.find_class(decode_base64("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw==")).unwrap();
+	let debuggable = env.get_static_field(app_info_class, decode_base64("RkxBR19ERUJVR0dBQkxF"), decode_base64("SQ==")).unwrap().i().unwrap();
+	debug!("JNI_OnLoad. debuggable:{}", debuggable);
+	if flags&debuggable !=0 {
+		(*DEBUGABLE1.lock().unwrap()) = true;
+		(*DEBUGABLE2.lock().unwrap()) = true;
+		(*DEBUGABLE3.lock().unwrap()) = true;
+	}
+	//------------------------------
+}
+
 lazy_static! {
     static ref JIEBA:Jieba = Jieba::new();
 	static ref WORD_MAP:HashMap<&'static str, Word<'static>> = deserialize(WORD).unwrap();
 	static ref CI_MAP:HashMap<&'static str, &'static str> = deserialize(CI).unwrap();
+	static ref DEBUGABLE1:Mutex<bool> = Mutex::new(false);
+	static ref DEBUGABLE2:Mutex<bool> = Mutex::new(false);
+	static ref DEBUGABLE3:Mutex<bool> = Mutex::new(false);
 }
 
 //JNI加载完成
 #[no_mangle]
-pub extern fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
+pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(LEVEL));
-	//---------- 加固 ---------------
-	let env = vm.get_env().unwrap();
-	//获取ApplicationContext
-	let app_info = env.call_method(activity, &String::from_utf8(decode("Z2V0QXBwbGljYXRpb25JbmZv").unwrap()).unwrap(), &String::from_utf8(decode("KClMYW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbzs=").unwrap()).unwrap(), &[]).unwrap().l().unwrap();
-	let flags = env.get_field(app_info, &String::from_utf8(decode("ZmxhZ3M=").unwrap()).unwrap(), &String::from_utf8(decode("SQ==").unwrap()).unwrap()).unwrap().i().unwrap();
-	let app_info_class = env.find_class(&String::from_utf8(decode("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw==").unwrap()).unwrap()).unwrap();
-	let debuggable = env.get_static_field(app_info_class, &String::from_utf8(decode("RkxBR19ERUJVR0dBQkxF").unwrap()).unwrap(), &String::from_utf8(decode("SQ==").unwrap()).unwrap()).unwrap().i().unwrap();
-	if flags&debuggable !=0{
-		//不允许调试
-		
-	}
-	//------------------------------
 	info!("JNI_OnLoad.");
+	let manifest_mf = utils::get_manifest_mf().unwrap();
+	for line in manifest_mf.lines(){
+		debug!("行：{:?}", line);
+	}
 	jni::sys::JNI_VERSION_1_6
 }
 
@@ -207,6 +228,13 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 	let result = (||->Result<(), String> {
 		let text: String = env.get_string(text).map_err(mje)?.into();
 		let mut args = pinyin::Args::new();
+		check(&env);
+		//------------ 加固 ------------------
+		// if *DEBUGABLE1.lock().unwrap() {
+		// 	let p: *mut i32 = 0x2345345 as *mut i32;
+		// 	unsafe{ *p += 1; }
+		// }
+		//------------------------------------
 		//包含声调
 		args.style = pinyin::Style::Tone;
 		let pinyin_list = pinyin::pinyin(&text, &args);
@@ -238,22 +266,16 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 //结巴分词
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _class: JClass, activity:JObject, text: jni::objects::JString) -> jni::sys::jobject{
-	debug!("获取到 jiebaCout>>>>>>>>>>>>>>>>>>");
-
 	let mje = |err|{ format!("jiebaCut {:?}", err) };
 	let mut words_array = None;
 	let result = (||->Result<(), String> {
-		//---------- 加固 ---------------
-		// let app_info = env.call_method(activity, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;", &[]).unwrap().l().unwrap();
-		// let flags = env.get_field(app_info, "flags", "I").unwrap().i().unwrap();
-		// let app_info_class = env.find_class("android/content/pm/ApplicationInfo").unwrap();
-		// let debuggable = env.get_static_field(app_info_class, "FLAG_DEBUGGABLE", "I").unwrap().i().unwrap();
-		// if flags&debuggable !=0{
-		// 	//不允许调试
-		// 	panic!()
+		check(&env);
+		//------------ 加固 ------------------
+		// if *DEBUGABLE2.lock().unwrap() {
+		// 	let p: *mut i32 = 0 as *mut i32;
+		// 	unsafe{ *p += 1455; }
 		// }
-		//------------------------------
-		
+		//------------------------------------
 		let text: String = env.get_string(text).map_err(mje)?.into();
 		let words = JIEBA.cut(&text, false);
 
@@ -288,6 +310,13 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
+			check(&env);
+			//------------ 加固 ------------------
+			// if *DEBUGABLE3.lock().unwrap() {
+			// 	let p: *mut u64 = std::ptr::null_mut();
+			// 	unsafe{ *p *= 100; }
+			// }
+			//------------------------------------
 			//只支持argb888格式
 			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
 				Err("图片格式只支持RGBA_8888!".to_string())
