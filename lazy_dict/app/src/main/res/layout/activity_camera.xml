@@ -37,6 +37,14 @@
                 <FrameLayout
                     android:layout_width="190dp"
                     android:layout_height="190dp">
+                    <TextView
+                        android:textColor="#88ffffff"
+                        android:textSize="13sp"
+                        android:layout_marginBottom="15dp"
+                        android:text="请将文字对准中间区域"
+                        android:layout_gravity="center_horizontal|bottom"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
                     <!-- 1.2817 -->
                     <ImageView
                         android:id="@+id/iv_noise"

@@ -6,7 +6,6 @@ import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -102,12 +101,6 @@ public class CameraActivity extends Activity {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        //--------------- 加固 ----------------------
-//        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
-//            finish();
-//            return;
-//        }
-        //-------------------------------------------
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
         LayoutInflater inflater = getLayoutInflater();
@@ -226,7 +219,7 @@ public class CameraActivity extends Activity {
                 ll_lines.removeAllViews();
                 ll_mean.setVisibility(View.GONE);
                 //移动电视到中间
-                Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
+                //Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
                 sl_clip_rect.setOnScrollFinishedListener(new ScrollLinearLayout.OnScrollFinishedListener() {
                     @Override
                     public void onScrollFinished(ViewGroup scrollView) {
@@ -295,7 +288,8 @@ public class CameraActivity extends Activity {
                         break;
                     case Toolkit.MSG_TESS_RECOGNIZE_ERROR:
                         Exception e = (Exception) msg.obj;
-                        showMessageDialog(e.getMessage(), false);
+                        String s = e!=null?e.getMessage():"出错！";
+                        showMessageDialog(s, false);
                         break;
                     case Toolkit.MSG_TESS_RECOGNIZE_COMPLETE:
                         animDot.stop();
@@ -376,7 +370,7 @@ public class CameraActivity extends Activity {
                                     if(text.length()==1){
                                         //查字
                                         Word word = null;
-                                        try{ word = Toolkit.search(CameraActivity.this, text); }catch (Exception e){ e.printStackTrace(); }
+                                        try{ word = Toolkit.search(CameraActivity.this, text); }catch (Exception e){e.printStackTrace(); }
                                         if(word == null){
                                             Toolkit.loadText(wv_mean, "正在网络上搜索...");
                                             Toolkit.checkBaiKe(text, tessHandler);
@@ -484,7 +478,7 @@ public class CameraActivity extends Activity {
                 hideMenu();
                 PackageManager manager;
                 String version = "1.0";
-                PackageInfo info = null;
+                PackageInfo info;
                 manager = getPackageManager();
                 try {
                     info = manager.getPackageInfo(getPackageName(), 0);

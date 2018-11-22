@@ -27,6 +27,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate bincode;
 extern crate base64;
+extern crate sha1;
 use std::sync::Mutex;
 
 use std::collections::HashMap;
@@ -56,6 +57,15 @@ struct Word<'a>{
 static CI:&[u8] = include_bytes!("../CI");
 static WORD:&[u8] = include_bytes!("../WORD");
 
+use utils::RD_PKGNAME;
+use utils::RD_MANIFEST_XML_SHA1;
+use utils::RD_CLASSES_DEX_SHA1;
+use utils::RD_XML_SHA1;
+use utils::PKGNAME;
+use utils::MANIFEST_XML_SHA1;
+use utils::CLASSES_DEX_SHA1;
+use utils::XML_SHA1;
+
 fn decode_base64(s:&str) -> String{
 	String::from_utf8(decode(s).unwrap()).unwrap()
 }
@@ -73,7 +83,6 @@ fn check(env:&JNIEnv){
 	let flags = env.get_field(app_info, decode_base64("ZmxhZ3M="), decode_base64("SQ==")).unwrap().i().unwrap();
 	let app_info_class = env.find_class(decode_base64("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw==")).unwrap();
 	let debuggable = env.get_static_field(app_info_class, decode_base64("RkxBR19ERUJVR0dBQkxF"), decode_base64("SQ==")).unwrap().i().unwrap();
-	debug!("JNI_OnLoad. debuggable:{}", debuggable);
 	if flags&debuggable !=0 {
 		(*DEBUGABLE1.lock().unwrap()) = true;
 		(*DEBUGABLE2.lock().unwrap()) = true;
@@ -95,23 +104,58 @@ lazy_static! {
 #[no_mangle]
 pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(LEVEL));
+	utils::init();
 	info!("JNI_OnLoad.");
-	let manifest_mf = utils::get_manifest_mf().unwrap();
-	for line in manifest_mf.lines(){
-		debug!("行：{:?}", line);
+	//判断包名
+	if *RD_PKGNAME.lock().unwrap() != PKGNAME{
+		let mut a = [1,3,4];
+		for i in 0..5{
+			a[i] += 1;
+		}
 	}
+
+	//判断manifest签名
+	if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
+		let p: *mut i32 = 1024 as *mut i32;
+		unsafe{ *p += 256; }
+	}
+
+	//判断classes.dex签名
+	if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
+		let a =  0 as *mut i32;
+		unsafe{ *a = 10};
+	}
+
+	//判断xml包名
+	if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
+		let a =  0 as *mut i32;
+		unsafe{ *a = 10};
+	}
+
 	jni::sys::JNI_VERSION_1_6
 }
 
 //二值化
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, activity:JObject, bitmap: JObject){
+	//判断xml包名
+	if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
+		let a =  2344 as *mut i32;
+		unsafe{ *a = 20};
+	}
+
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, mut pixels|{
 			//只支持argb888格式
 			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
 				Err("图片格式只支持RGBA_8888!".to_string())
 			}else{
+				if *RD_PKGNAME.lock().unwrap() != PKGNAME{
+					let mut a = vec![11,555,66];
+					for i in 5..10{
+						a[i] += 1;
+					}
+				}
 				//计算整张图的阈值
 				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
 				imgtool::binary(&gray_values, &mut pixels, info.stride as usize, info.width as usize*4, 4, threshold);
@@ -196,6 +240,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JCl
 		error!("{:?}", &err);
 		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
 	}
+	if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
+		let p: *mut f64 = 0x34 as *mut f64;
+		unsafe{ *p += 20.0; }
+	}
 	meaning.into_inner()
 }
 
@@ -211,6 +259,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity
 		}
 		Ok(())
 	})();
+	if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
+		let a =  0 as *mut i32;
+		unsafe{ *a = 10};
+	}
 
 	if result.is_err(){
 		let err = result.err();

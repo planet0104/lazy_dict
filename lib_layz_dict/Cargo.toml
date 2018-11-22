@@ -18,6 +18,7 @@ bincode = "1.0.1"
 serde_derive = "1.0.80"
 serde = "1.0.80"
 base64 = "0.10.0"
+sha1 = "0.6.0"
 
 [lib]
 crate-type = ["cdylib"]
