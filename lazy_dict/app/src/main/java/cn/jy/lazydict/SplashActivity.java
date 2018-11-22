@@ -1,12 +1,7 @@
 package cn.jy.lazydict;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.Signature;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -28,16 +23,7 @@ public class SplashActivity extends Activity{
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        //--------------- 加固 ----------------------
-//        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
-//            finish();
-//            return;
-//        }
-        //-------------------------------------------
         super.onCreate(savedInstanceState);
-
-        Log.d(TAG, "获取到 getApplicationInfo().flags="+getApplicationInfo().flags);
-        Log.d(TAG, "获取到 ApplicationInfo.FLAG_DEBUGGABLE="+ApplicationInfo.FLAG_DEBUGGABLE);
 
         try {
             Toolkit.jiebaCut(this, "字");
@@ -45,14 +31,6 @@ public class SplashActivity extends Activity{
             Log.d(TAG, "获取到 出错！"+e.getStackTrace());
             e.printStackTrace();
         }
-
-        //        if((getApplicationInfo().flags&=ApplicationInfo.FLAG_DEBUGGABLE) !=0){
-//            Log.d(TAG, "禁止调试!");
-//            showMessageDialog("禁止调试", true);
-//            return;
-//        }
-        int pid = android.os.Process.myPid();
-        Log.d("哈哈", "status pid="+pid);
         //初始化广告
         MobileAds.initialize(this, BuildConfig.AD_APP_ID);
         setContentView(R.layout.activity_splash);

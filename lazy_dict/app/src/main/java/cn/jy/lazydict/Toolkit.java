@@ -52,24 +52,6 @@ public class Toolkit {
     public static native Bitmap decodeYUV420SP(Context activity, byte[] data, int width, int height, int cameraOrientation) throws Exception;
 
     /**
-     * 根据坐标选择一个文字块
-     * @param tg
-     * @param x
-     * @param y
-     * @return
-     * @throws Exception
-     */
-    public static native RectF getCharacterRect(ThresholdGray tg, int x, int y) throws Exception;
-
-    /**
-     * 计算阈值和灰度图
-     * @param bitmap
-     * @return
-     * @throws Exception
-     */
-    public static native ThresholdGray calcThreshold(Bitmap bitmap) throws Exception;
-
-    /**
      * 二值化
      * @param bitmap
      * @return
@@ -308,6 +290,7 @@ public class Toolkit {
             //识别出错
             Message msg = Message.obtain();
             msg.what = MSG_TESS_RECOGNIZE_ERROR;
+            msg.obj = new Exception("图片压缩失败!");
             handler.sendMessage(msg);
             return;
         }
@@ -357,6 +340,7 @@ public class Toolkit {
                         //识别出错
                         Message msg = Message.obtain();
                         msg.what = MSG_TESS_RECOGNIZE_ERROR;
+                        msg.obj = new Exception(error.getMessage());
                         handler.sendMessage(msg);
                     }
                 });
@@ -380,6 +364,7 @@ public class Toolkit {
                     //识别出错
                     Message msg = Message.obtain();
                     msg.what = MSG_TESS_RECOGNIZE_ERROR;
+                    msg.obj = new Exception(error.getMessage());
                     handler.sendMessage(msg);
                 }
             }, activity.getApplicationContext());

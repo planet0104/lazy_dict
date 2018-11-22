@@ -3,6 +3,7 @@ use std::fs::File;
 use zip;
 use std::io::{Write, Read, Result};
 use std::sync::Mutex;
+use sha1::Sha1;
 
 static PROC_SELF_CMD_LINE_SUBSTR_0:&str = "/proc/self";
 static PROC_SELF_CMD_LINE_SUBSTR_1:&str = "/cmdline";
@@ -17,14 +18,107 @@ static MANIFEST_SUBSTR_1:&str = "/MANIFEST.MF";
 
 //验证内容 1、包名 2、manifest.xml签名 3、classex.dex签名
 
-pub static PKGNAME:&str = "cn.jy.lazydict";
-pub static MANIFEST_XML_SHA1:&str = "RKHLR/UFUS2TtcegKRi0jv9+e+4=";
-pub static CLASSES_DEX_SHA1:&str = "Uvpbv/a/AnqTb+ePdKsX2ebAtWo=";
+pub static PKGNAME:&[u8] = &[14, 176, 195, 92, 33, 68, 50, 24, 72, 141, 198, 70, 241, 171, 7, 121];//cn.jy.lazydict
+
+//测试
+// pub static MANIFEST_XML_SHA1:&[u8] = &[142, 94, 123, 29, 215, 242, 74, 40, 227, 138, 68, 78, 225, 94, 116, 113];
+// pub static CLASSES_DEX_SHA1:&[u8] = &[111, 66, 48, 231, 203, 4, 142, 162, 208, 246, 76, 193, 110, 241, 252, 210];
+//生产
+pub static MANIFEST_XML_SHA1:&[u8] = &[183, 0, 104, 140, 114, 158, 26, 104, 238, 208, 101, 148, 27, 157, 65, 109];
+pub static CLASSES_DEX_SHA1:&[u8] = &[59, 108, 13, 235, 113, 87, 82, 18, 150, 231, 101, 241, 85, 126, 71, 51];
+
+pub static XML_SHA1:&[u8] = &[68, 193, 221, 209, 163, 139, 173, 13, 149, 109, 163, 190, 6, 225, 198, 55, 113, 251, 204, 165, 23, 205, 245, 22, 168, 46, 134, 185, 118, 53, 232, 138];//两个xml
 
 lazy_static!{
-    static ref RD_PKGNAME:String = get_package_name().unwrap();
-    static ref RD_MANIFEST_XML_SHA1:Mutex<String> = Mutex::new(String::new());
-    static ref RD_CLASSES_DEX_SHA1:Mutex<String> = Mutex::new(String::new());
+    //读取包名
+    pub static ref RD_PKGNAME:Mutex<[u8; 16]> = Mutex::new([0; 16]);
+    //读取manifest.xml签名
+    pub static ref RD_MANIFEST_XML_SHA1:Mutex<[u8; 16]> = Mutex::new([0; 16]);
+    //读取classex.dex签名
+    pub static ref RD_CLASSES_DEX_SHA1:Mutex<[u8; 16]> = Mutex::new([0; 16]);
+    //两个页面签名
+    pub static ref RD_XML_SHA1:Mutex<[u8; 32]> = Mutex::new([0; 32]);
+}
+
+fn encode(s:&str) -> [u8; 16]{
+    let base64 = base64::encode(s);
+    let mut hasher = Sha1::new();
+    hasher.update( base64.as_bytes() );
+    let mut sha1 = hasher.digest().bytes();
+    sha1.rotate_left(13);
+    [
+        sha1[2],sha1[3],sha1[4],sha1[5],
+        sha1[6],sha1[7],sha1[8],sha1[9],
+        sha1[10],sha1[11],sha1[12],sha1[13],
+        sha1[14],sha1[15],sha1[16],sha1[17],
+    ]
+}
+
+pub fn init(){
+    let pkg_name = get_package_name().unwrap();
+    //设置包名
+    (*RD_PKGNAME.lock().unwrap()) = encode(&pkg_name);
+    
+    let manifest_mf = get_manifest_mf().unwrap();
+
+    //设置manifest.xml签名
+    let mut read_xml = 0;
+    let mut read_dex = 0;
+    let mut read_view0 = 0;
+    let mut read_view1 = 0;
+    let mut view_data:[u8; 32] = [0; 32];
+    for line in manifest_mf.lines(){
+        if read_xml == 1{
+            let mut iter = line.split_whitespace();
+            let _ = iter.next();
+            (*RD_MANIFEST_XML_SHA1.lock().unwrap()) = encode(iter.next().unwrap());
+            read_xml = 2;
+        }
+        if read_dex == 1{
+            let mut iter = line.split_whitespace();
+            let _ = iter.next();
+            (*RD_CLASSES_DEX_SHA1.lock().unwrap()) = encode(iter.next().unwrap());
+            read_dex = 2;
+        }
+        if read_view0 == 1{
+            let mut iter = line.split_whitespace();
+            let _ = iter.next();
+            let data = encode(iter.next().unwrap());
+            for i in 0..16{
+                view_data[i] = data[i];
+            }
+            read_view0 = 2;
+        }
+        if read_view1 == 1{
+            let mut iter = line.split_whitespace();
+            let _ = iter.next();
+            let data = encode(iter.next().unwrap());
+            for i in 0..16{
+                view_data[16+i] = data[i];
+            }
+            read_view1 = 2;
+        }
+        if read_dex==2 && read_xml==2 && read_view0==2 && read_view1==2{
+            (*RD_XML_SHA1.lock().unwrap()) = view_data;
+            break;
+        }
+        if line.contains(&decode_base64("QW5kcm9pZE1hbmlmZXN0LnhtbA==")){
+            read_xml = 1;
+        }
+        if line.contains(&decode_base64("Y2xhc3Nlcy5kZXg=")){
+            read_dex = 1;
+        }
+        if line.contains("activity_camera.xml"){
+            read_view0 = 1;
+        }
+        if line.contains("activity_splash.xml"){
+            read_view1 = 1;
+        }
+    }
+}
+
+fn decode_base64(s:&str) -> String{
+	String::from_utf8(base64::decode(s).unwrap()).unwrap()
 }
 
 // 获取包名
@@ -38,7 +132,6 @@ pub fn get_package_name() -> Result<String>{
 //获取apk路径
 pub fn get_apk_file_path() -> Result<String>{
     let package = get_package_name()?;
-    debug!("包名:{}", package);
     let mut file = File::open(&format!("{}{}", PROC_SELF_CMD_LINE_SUBSTR_0, PROC_SELF_MAPS_SUBSTR_0))?;
     let mut contents = String::new();
     let _count = file.read_to_string(&mut contents)?;

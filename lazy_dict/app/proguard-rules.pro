@@ -36,6 +36,10 @@
 -keep class MTT.ThirdAppInfoNew {
     *;
 }
+
+-keep class cn.jy.lazydict.Word {
+    *;
+}
 -keep class com.tencent.** {
     *;
 }
