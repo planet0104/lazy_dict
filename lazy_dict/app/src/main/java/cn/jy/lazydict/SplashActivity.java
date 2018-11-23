@@ -19,7 +19,6 @@ import static cn.jy.lazydict.Toolkit.MSG_TESS_INIT_SUCCESS;
 
 public class SplashActivity extends Activity{
     static final String TAG = "SplashActivity1";
-    private AdView mAdView0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +33,8 @@ public class SplashActivity extends Activity{
         //初始化广告
         MobileAds.initialize(this, BuildConfig.AD_APP_ID);
         setContentView(R.layout.activity_splash);
-        mAdView0 = findViewById(R.id.adView0);
+        AdView mAdView0 = findViewById(R.id.adView0);
+        AdView mAdView1 = findViewById(R.id.adView1);
 
         //初始化
         Toolkit.initTessTwo(this, new Handler(new Handler.Callback() {
@@ -49,6 +49,7 @@ public class SplashActivity extends Activity{
         }));
         initJieBa();
         mAdView0.loadAd(getAdRequest());
+        mAdView1.loadAd(getAdRequest());
 
         //至少显示5s
         mAdView0.postDelayed(new Runnable() {
@@ -57,7 +58,7 @@ public class SplashActivity extends Activity{
                 startActivity(new Intent(SplashActivity.this, CameraActivity.class));
                 finish();
             }
-        }, 5000);
+        }, 3000);
     }
 
     private AdRequest getAdRequest(){
