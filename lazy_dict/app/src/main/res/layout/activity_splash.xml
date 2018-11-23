@@ -16,8 +16,17 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        ads:adSize=" 	MEDIUM_RECTANGLE"
+        ads:adSize="BANNER"
         ads:adUnitId="@string/banner_id_0">
+    </com.google.android.gms.ads.AdView>
+    <com.google.android.gms.ads.AdView
+        xmlns:ads="http://schemas.android.com/apk/res-auto"
+        android:id="@+id/adView1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        ads:adSize="LARGE_BANNER"
+        ads:adUnitId="@string/banner_id_1">
     </com.google.android.gms.ads.AdView>
     <View
         android:layout_width="match_parent"

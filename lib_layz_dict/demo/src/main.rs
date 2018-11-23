@@ -56,14 +56,14 @@ fn main(){
 
     //生产
     println!("{:?}", encode("jb9YzQQqw2JJapOx3jmbRY+BAKE="));
-    println!("{:?}", encode("FeIeuB7RNgqp9X49MnygEfYBqTM="));
+    println!("{:?}", encode("gKNqdGLCpI6cGOnB7a45SbedH4E="));
 
     //测试
     // println!("{:?}", encode("FPqob2khsJo4dFrzO5vsh08LRG4="));
     // println!("{:?}", encode("mbFnaSVudjxyHEAUkjlJGO9b2tY="));
 
-    println!("{:?} {}", encode("/rJeBHj9KTThXHXcsbo8DN6x2ys="), encode("/rJeBHj9KTThXHXcsbo8DN6x2ys=").len());//camera.xml
-    println!("{:?}", encode("PpC6Sr+FGaT2pHuLSZPd56WDzFs="));//splash.xml
+    println!("{:?}", encode("K59LKgXsV2S7hIcwfm2M+ybIdZs="));//camera.xml
+    println!("{:?}", encode("YE4h0nibWZvFNiHHld0mJjp9rWo="));//splash.xml
 }
 
 fn encode(s:&str) -> [u8; 16]{

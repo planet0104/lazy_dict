@@ -106,6 +106,9 @@ pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(LEVEL));
 	utils::init();
 	info!("JNI_OnLoad.");
+
+	//------------ 加固 ------------------
+
 	//判断包名
 	if *RD_PKGNAME.lock().unwrap() != PKGNAME{
 		let mut a = [1,3,4];
@@ -132,17 +135,20 @@ pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 		unsafe{ *a = 10};
 	}
 
+	//---------------------------------------------
+
 	jni::sys::JNI_VERSION_1_6
 }
 
 //二值化
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, activity:JObject, bitmap: JObject){
-	//判断xml包名
+	//------------ 加固 ----------------------
 	if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
 		let a =  2344 as *mut i32;
 		unsafe{ *a = 20};
 	}
+	//----------------------------------------
 
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, mut pixels|{
@@ -150,12 +156,14 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JCl
 			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
 				Err("图片格式只支持RGBA_8888!".to_string())
 			}else{
+				//------------ 加固 ----------------------
 				if *RD_PKGNAME.lock().unwrap() != PKGNAME{
 					let mut a = vec![11,555,66];
 					for i in 5..10{
 						a[i] += 1;
 					}
 				}
+				//---------------------------------------
 				//计算整张图的阈值
 				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
 				imgtool::binary(&gray_values, &mut pixels, info.stride as usize, info.width as usize*4, 4, threshold);
@@ -240,10 +248,12 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JCl
 		error!("{:?}", &err);
 		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
 	}
+	//------------ 加固 ----------------------
 	if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
 		let p: *mut f64 = 0x34 as *mut f64;
 		unsafe{ *p += 20.0; }
 	}
+	//----------------------------------------
 	meaning.into_inner()
 }
 
@@ -259,10 +269,13 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity
 		}
 		Ok(())
 	})();
+
+	//------------ 加固 ----------------------
 	if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
 		let a =  0 as *mut i32;
 		unsafe{ *a = 10};
 	}
+	//----------------------------------------
 
 	if result.is_err(){
 		let err = result.err();
@@ -282,10 +295,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 		let mut args = pinyin::Args::new();
 		check(&env);
 		//------------ 加固 ------------------
-		// if *DEBUGABLE1.lock().unwrap() {
-		// 	let p: *mut i32 = 0x2345345 as *mut i32;
-		// 	unsafe{ *p += 1; }
-		// }
+		if *DEBUGABLE1.lock().unwrap() {
+			let p: *mut i32 = 0x2345345 as *mut i32;
+			unsafe{ *p += 1; }
+		}
 		//------------------------------------
 		//包含声调
 		args.style = pinyin::Style::Tone;
@@ -323,10 +336,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _class: JCla
 	let result = (||->Result<(), String> {
 		check(&env);
 		//------------ 加固 ------------------
-		// if *DEBUGABLE2.lock().unwrap() {
-		// 	let p: *mut i32 = 0 as *mut i32;
-		// 	unsafe{ *p += 1455; }
-		// }
+		if *DEBUGABLE2.lock().unwrap() {
+			let p: *mut i32 = 0 as *mut i32;
+			unsafe{ *p += 1455; }
+		}
 		//------------------------------------
 		let text: String = env.get_string(text).map_err(mje)?.into();
 		let words = JIEBA.cut(&text, false);
@@ -364,10 +377,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
 			check(&env);
 			//------------ 加固 ------------------
-			// if *DEBUGABLE3.lock().unwrap() {
-			// 	let p: *mut u64 = std::ptr::null_mut();
-			// 	unsafe{ *p *= 100; }
-			// }
+			if *DEBUGABLE3.lock().unwrap() {
+				let p: *mut u64 = std::ptr::null_mut();
+				unsafe{ *p *= 100; }
+			}
 			//------------------------------------
 			//只支持argb888格式
 			if info.format != jni_graphics::ANDROID_BITMAP_FORMAT_RGBA_8888{
