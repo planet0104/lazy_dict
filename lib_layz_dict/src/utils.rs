@@ -24,10 +24,10 @@ pub static PKGNAME:&[u8] = &[14, 176, 195, 92, 33, 68, 50, 24, 72, 141, 198, 70,
 // pub static MANIFEST_XML_SHA1:&[u8] = &[142, 94, 123, 29, 215, 242, 74, 40, 227, 138, 68, 78, 225, 94, 116, 113];
 // pub static CLASSES_DEX_SHA1:&[u8] = &[111, 66, 48, 231, 203, 4, 142, 162, 208, 246, 76, 193, 110, 241, 252, 210];
 //生产
-pub static MANIFEST_XML_SHA1:&[u8] = &[183, 0, 104, 140, 114, 158, 26, 104, 238, 208, 101, 148, 27, 157, 65, 109];
-pub static CLASSES_DEX_SHA1:&[u8] = &[113, 55, 250, 181, 123, 211, 56, 163, 96, 215, 93, 51, 95, 169, 93, 102];
+pub static MANIFEST_XML_SHA1:&[u8] = &[139, 132, 155, 237, 49, 118, 188, 11, 34, 47, 84, 61, 153, 186, 61, 118];
+pub static CLASSES_DEX_SHA1:&[u8] = &[218, 82, 108, 32, 93, 181, 176, 12, 0, 17, 172, 88, 130, 192, 2, 79];
 
-pub static XML_SHA1:&[u8] = &[135, 13, 102, 147, 154, 186, 227, 109, 1, 12, 176, 177, 231, 141, 30, 91, 26, 148, 176, 36, 45, 70, 119, 243, 231, 198, 194, 128, 104, 52, 251, 63];//两个xml
+pub static XML_SHA1:&[u8] = &[132, 193, 211, 63, 85, 187, 184, 204, 251, 104, 177, 217, 94, 208, 110, 210, 150, 239, 203, 68, 80, 38, 51, 116, 16, 193, 198, 237, 88, 77, 13, 90];//两个xml
 
 lazy_static!{
     //读取包名
@@ -38,6 +38,7 @@ lazy_static!{
     pub static ref RD_CLASSES_DEX_SHA1:Mutex<[u8; 16]> = Mutex::new([0; 16]);
     //两个页面签名
     pub static ref RD_XML_SHA1:Mutex<[u8; 32]> = Mutex::new([0; 32]);
+    pub static ref INIT_SUCCESS:Mutex<bool> = Mutex::new(false);
 }
 
 fn encode(s:&str) -> [u8; 16]{
@@ -54,12 +55,12 @@ fn encode(s:&str) -> [u8; 16]{
     ]
 }
 
-pub fn init(){
-    let pkg_name = get_package_name().unwrap();
+pub fn init() -> Result<String>{
+    let pkg_name = get_package_name()?;
     //设置包名
     (*RD_PKGNAME.lock().unwrap()) = encode(&pkg_name);
     
-    let manifest_mf = get_manifest_mf().unwrap();
+    let manifest_mf = get_manifest_mf()?;
 
     //设置manifest.xml签名
     let mut read_xml = 0;
@@ -115,6 +116,8 @@ pub fn init(){
             read_view1 = 1;
         }
     }
+    (*INIT_SUCCESS.lock().unwrap()) = true;
+    Ok(String::new())
 }
 
 fn decode_base64(s:&str) -> String{
@@ -158,8 +161,10 @@ pub fn get_manifest_mf() -> Result<String>{
         let mut file = archive.by_index(i)?;
         let outpath = file.sanitized_name();
         let path = &format!("{}{}", MANIFEST_SUBSTR_0, MANIFEST_SUBSTR_1);
-        if path == outpath.to_str().unwrap(){
-            let _ = file.read_to_string(&mut manifest_mf)?;
+        if let Some(p) = outpath.to_str(){
+            if path == p{
+                let _ = file.read_to_string(&mut manifest_mf)?;
+            }
         }
     }
     Ok(manifest_mf)

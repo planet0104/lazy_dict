@@ -457,7 +457,9 @@ public class CameraActivity extends Activity {
                             Toolkit.loadText(wv_mean, "未找到解释<br /><a href=\"http://split.search\">拆分查询</a>");
                         }else{
                             String[] res = (String[]) msg.obj;
-                            Toolkit.loadText(wv_mean, res[1]);
+                            if(res.length>1){
+                                Toolkit.loadText(wv_mean, res[1]);
+                            }
                         }
                         break;
                 }
@@ -534,7 +536,7 @@ public class CameraActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
-            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (grantResults.length>0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 showSurfaceViewAndStart();
             } else {
                 showMessageDialog("无法启动相机，请先允许相机访问权限", true);

@@ -55,15 +55,15 @@ fn main(){
     println!("{:?}", encode("cn.jy.lazydict"));
 
     //生产
-    println!("{:?}", encode("jb9YzQQqw2JJapOx3jmbRY+BAKE="));
-    println!("{:?}", encode("gKNqdGLCpI6cGOnB7a45SbedH4E="));
+    println!("{:?}", encode("geeLNvX1mz4R50B3U8aqC94mARk="));//manifest.xml
+    println!("{:?}", encode("+N17v9bZyVNKwgm8ulfdLwhtUfs="));//classex.dex
 
     //测试
     // println!("{:?}", encode("FPqob2khsJo4dFrzO5vsh08LRG4="));
     // println!("{:?}", encode("mbFnaSVudjxyHEAUkjlJGO9b2tY="));
 
-    println!("{:?}", encode("K59LKgXsV2S7hIcwfm2M+ybIdZs="));//camera.xml
-    println!("{:?}", encode("YE4h0nibWZvFNiHHld0mJjp9rWo="));//splash.xml
+    println!("{:?}", encode("3lvi1WeiZGQK9h4KC8lL1uY/rlA="));//camera.xml
+    println!("{:?}", encode("/OiNSRnvMAJFnEj9jOeDH0nYqac="));//splash.xml
 }
 
 fn encode(s:&str) -> [u8; 16]{
