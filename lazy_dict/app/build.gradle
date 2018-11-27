@@ -54,11 +54,11 @@ android {
 }
 
 dependencies {
-    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    implementation fileTree(dir: 'libs', include: '*.aar')
+    implementation fileTree(dir: 'libs', include: '*.jar')
     implementation 'com.rmtheis:tess-two:9.0.0'
     testImplementation 'junit:junit:4.12'
     implementation 'com.squareup.okhttp3:okhttp:3.11.0'
     implementation 'org.jsoup:jsoup:1.11.3'
-    implementation 'com.google.android.gms:play-services-ads:17.1.1'
     implementation 'com.android.support:appcompat-v7:27.1.1'
 }

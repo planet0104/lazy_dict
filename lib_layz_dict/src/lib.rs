@@ -65,30 +65,31 @@ use utils::PKGNAME;
 use utils::MANIFEST_XML_SHA1;
 use utils::CLASSES_DEX_SHA1;
 use utils::XML_SHA1;
+use utils::INIT_SUCCESS;
 
 fn decode_base64(s:&str) -> String{
 	String::from_utf8(decode(s).unwrap()).unwrap()
 }
 
 //加固用
-fn check(env:&JNIEnv){
+fn check(env:&JNIEnv) -> jni::errors::Result<String>{
 	// //获取Activity Thread的实例对象
-	let activity_thread_class = env.find_class(decode_base64("YW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ=")).unwrap();
+	let activity_thread_class = env.find_class(decode_base64("YW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ="))?;
 	//"currentActivityThread", "()Landroid/app/ActivityThread;"
-	let activity_thread = env.call_static_method(activity_thread_class, decode_base64("Y3VycmVudEFjdGl2aXR5VGhyZWFk"), decode_base64("KClMYW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ7"), &[]).unwrap().l().unwrap();
+	let activity_thread = env.call_static_method(activity_thread_class, decode_base64("Y3VycmVudEFjdGl2aXR5VGhyZWFk"), decode_base64("KClMYW5kcm9pZC9hcHAvQWN0aXZpdHlUaHJlYWQ7"), &[])?.l()?;
 	// //"getApplication", "()Landroid/app/Application;"
-	let context = env.call_method(activity_thread, decode_base64("Z2V0QXBwbGljYXRpb24="), decode_base64("KClMYW5kcm9pZC9hcHAvQXBwbGljYXRpb247"), &[]).unwrap().l().unwrap();
+	let context = env.call_method(activity_thread, decode_base64("Z2V0QXBwbGljYXRpb24="), decode_base64("KClMYW5kcm9pZC9hcHAvQXBwbGljYXRpb247"), &[])?.l()?;
 
-	let app_info = env.call_method(context, decode_base64("Z2V0QXBwbGljYXRpb25JbmZv"), decode_base64("KClMYW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbzs="), &[]).unwrap().l().unwrap();
-	let flags = env.get_field(app_info, decode_base64("ZmxhZ3M="), decode_base64("SQ==")).unwrap().i().unwrap();
-	let app_info_class = env.find_class(decode_base64("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw==")).unwrap();
-	let debuggable = env.get_static_field(app_info_class, decode_base64("RkxBR19ERUJVR0dBQkxF"), decode_base64("SQ==")).unwrap().i().unwrap();
+	let app_info = env.call_method(context, decode_base64("Z2V0QXBwbGljYXRpb25JbmZv"), decode_base64("KClMYW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbzs="), &[])?.l()?;
+	let flags = env.get_field(app_info, decode_base64("ZmxhZ3M="), decode_base64("SQ=="))?.i()?;
+	let app_info_class = env.find_class(decode_base64("YW5kcm9pZC9jb250ZW50L3BtL0FwcGxpY2F0aW9uSW5mbw=="))?;
+	let debuggable = env.get_static_field(app_info_class, decode_base64("RkxBR19ERUJVR0dBQkxF"), decode_base64("SQ=="))?.i()?;
 	if flags&debuggable !=0 {
 		(*DEBUGABLE1.lock().unwrap()) = true;
 		(*DEBUGABLE2.lock().unwrap()) = true;
 		(*DEBUGABLE3.lock().unwrap()) = true;
 	}
-	//------------------------------
+	Ok(String::new())
 }
 
 lazy_static! {
@@ -104,37 +105,38 @@ lazy_static! {
 #[no_mangle]
 pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 	android_logger::init_once(android_logger::Filter::default().with_min_level(LEVEL));
-	utils::init();
+	let _ = utils::init();
 	info!("JNI_OnLoad.");
 
 	//------------ 加固 ------------------
 
 	//判断包名
-	if *RD_PKGNAME.lock().unwrap() != PKGNAME{
-		let mut a = [1,3,4];
-		for i in 0..5{
-			a[i] += 1;
+	if *INIT_SUCCESS.lock().unwrap() {
+		if *RD_PKGNAME.lock().unwrap() != PKGNAME{
+			let mut a = [1,3,4];
+			for i in 0..5{
+				a[i] += 1;
+			}
+		}
+
+		//判断manifest签名
+		if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
+			let p: *mut i32 = 1024 as *mut i32;
+			unsafe{ *p += 256; }
+		}
+
+		//判断classes.dex签名
+		if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
+			let a =  0 as *mut i32;
+			unsafe{ *a = 10};
+		}
+
+		//判断xml包名
+		if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
+			let a =  0 as *mut i32;
+			unsafe{ *a = 10};
 		}
 	}
-
-	//判断manifest签名
-	if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
-		let p: *mut i32 = 1024 as *mut i32;
-		unsafe{ *p += 256; }
-	}
-
-	//判断classes.dex签名
-	if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
-		let a =  0 as *mut i32;
-		unsafe{ *a = 10};
-	}
-
-	//判断xml包名
-	if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
-		let a =  0 as *mut i32;
-		unsafe{ *a = 10};
-	}
-
 	//---------------------------------------------
 
 	jni::sys::JNI_VERSION_1_6
@@ -144,9 +146,11 @@ pub extern fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut c_void) -> jint{
 #[no_mangle]
 pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JClass, activity:JObject, bitmap: JObject){
 	//------------ 加固 ----------------------
-	if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
-		let a =  2344 as *mut i32;
-		unsafe{ *a = 20};
+	if *INIT_SUCCESS.lock().unwrap() {
+		if *RD_XML_SHA1.lock().unwrap() != XML_SHA1{
+			let a =  2344 as *mut i32;
+			unsafe{ *a = 20};
+		}
 	}
 	//----------------------------------------
 
@@ -157,10 +161,12 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JCl
 				Err("图片格式只支持RGBA_8888!".to_string())
 			}else{
 				//------------ 加固 ----------------------
-				if *RD_PKGNAME.lock().unwrap() != PKGNAME{
-					let mut a = vec![11,555,66];
-					for i in 5..10{
-						a[i] += 1;
+				if *INIT_SUCCESS.lock().unwrap() {
+					if *RD_PKGNAME.lock().unwrap() != PKGNAME{
+						let mut a = vec![11,555,66];
+						for i in 5..10{
+							a[i] += 1;
+						}
 					}
 				}
 				//---------------------------------------
@@ -249,9 +255,11 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_search<'a>(env: JNIEnv, _activity: JCl
 		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
 	}
 	//------------ 加固 ----------------------
-	if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
-		let p: *mut f64 = 0x34 as *mut f64;
-		unsafe{ *p += 20.0; }
+	if *INIT_SUCCESS.lock().unwrap() {
+		if *RD_MANIFEST_XML_SHA1.lock().unwrap() != MANIFEST_XML_SHA1{
+			let p: *mut f64 = 0x34 as *mut f64;
+			unsafe{ *p += 20.0; }
+		}
 	}
 	//----------------------------------------
 	meaning.into_inner()
@@ -271,9 +279,11 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_searchWords<'a>(env: JNIEnv, _activity
 	})();
 
 	//------------ 加固 ----------------------
-	if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
-		let a =  0 as *mut i32;
-		unsafe{ *a = 10};
+	if *INIT_SUCCESS.lock().unwrap() {
+		if *RD_CLASSES_DEX_SHA1.lock().unwrap() != CLASSES_DEX_SHA1{
+			let a =  0 as *mut i32;
+			unsafe{ *a = 10};
+		}
 	}
 	//----------------------------------------
 
@@ -293,11 +303,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_pinyin<'a>(env: JNIEnv, _activity: JCl
 	let result = (||->Result<(), String> {
 		let text: String = env.get_string(text).map_err(mje)?.into();
 		let mut args = pinyin::Args::new();
-		check(&env);
+		let _ = check(&env);
 		//------------ 加固 ------------------
 		if *DEBUGABLE1.lock().unwrap() {
-			let p: *mut i32 = 0x2345345 as *mut i32;
-			unsafe{ *p += 1; }
+			return Err(String::from("0"));
 		}
 		//------------------------------------
 		//包含声调
@@ -334,11 +343,10 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_jiebaCut<'a>(env: JNIEnv, _class: JCla
 	let mje = |err|{ format!("jiebaCut {:?}", err) };
 	let mut words_array = None;
 	let result = (||->Result<(), String> {
-		check(&env);
+		let _ = check(&env);
 		//------------ 加固 ------------------
 		if *DEBUGABLE2.lock().unwrap() {
-			let p: *mut i32 = 0 as *mut i32;
-			unsafe{ *p += 1455; }
+			return Err(String::from("0"));
 		}
 		//------------------------------------
 		let text: String = env.get_string(text).map_err(mje)?.into();
@@ -375,11 +383,13 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 
 	let result = (||->Result<(), String> {
 		jni_graphics::lock_bitmap(&env, &bitmap, |info, pixels|{
-			check(&env);
+			let _ = check(&env);
 			//------------ 加固 ------------------
 			if *DEBUGABLE3.lock().unwrap() {
-				let p: *mut u64 = std::ptr::null_mut();
-				unsafe{ *p *= 100; }
+				return Err(String::from("0"));
+
+				// let p: *mut u64 = std::ptr::null_mut();
+				// unsafe{ *p *= 100; }
 			}
 			//------------------------------------
 			//只支持argb888格式

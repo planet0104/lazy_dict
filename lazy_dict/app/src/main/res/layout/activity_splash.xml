@@ -1,38 +1,22 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/white"
-    android:orientation="vertical"
-    android:paddingTop="30dp"
-    tools:context=".SplashActivity">
-    <View
+    android:layout_height="match_parent">
+    <RelativeLayout
+        android:id="@+id/rl_splash"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-    <com.google.android.gms.ads.AdView
-        xmlns:ads="http://schemas.android.com/apk/res-auto"
-        android:id="@+id/adView0"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        ads:adSize="BANNER"
-        ads:adUnitId="@string/banner_id_0">
-    </com.google.android.gms.ads.AdView>
-    <com.google.android.gms.ads.AdView
-        xmlns:ads="http://schemas.android.com/apk/res-auto"
-        android:id="@+id/adView1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        ads:adSize="LARGE_BANNER"
-        ads:adUnitId="@string/banner_id_1">
-    </com.google.android.gms.ads.AdView>
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="match_parent"
+        android:layout_marginBottom="80dp">
+        <View
+            android:id="@+id/view_divider"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_alignParentBottom="true"
+            android:background="#00ffffff"
+            />
+    </RelativeLayout>
     <LinearLayout
+        android:layout_alignParentBottom="true"
         android:id="@+id/app_logo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -71,4 +55,4 @@
                 android:textSize="13.5sp" />
         </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</RelativeLayout >
