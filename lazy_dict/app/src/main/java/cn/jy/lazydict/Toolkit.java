@@ -128,7 +128,7 @@ public class Toolkit {
                             }
                         }
                     }
-                }catch (Exception e){
+                }catch (Throwable e){
                     e.printStackTrace();
                 }
                 handler.sendMessage(msg);
@@ -228,7 +228,7 @@ public class Toolkit {
                     msg = Message.obtain();
                     msg.what = MSG_TESS_RECOGNIZE_COMPLETE;
                     handler.sendMessage(msg);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     e.printStackTrace();
                     //识别出错
                     Message msg = Message.obtain();
@@ -277,7 +277,7 @@ public class Toolkit {
         final File tmp = new File(activity.getCacheDir(), "cap.jpg");
         try{
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, new FileOutputStream(tmp));
-        }catch (Exception e){
+        }catch (Throwable e){
             e.printStackTrace();
             //识别出错
             Message msg = Message.obtain();
@@ -325,7 +325,7 @@ public class Toolkit {
                                 msg.arg1 = -1;
                                 msg.obj = words;
                                 handler.sendMessage(msg);
-                            }catch (Exception e){e.printStackTrace();}
+                            }catch (Throwable e){e.printStackTrace();}
                         }
                         //识别完成
                         Log.d(TAG, "识别完成！！！！！！");

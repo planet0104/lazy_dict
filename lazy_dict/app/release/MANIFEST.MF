@@ -60,7 +60,7 @@ Name: assets/wx.png
 SHA1-Digest: /AX4rAvsyx/ukX/LsShx9XGJIco=
 
 Name: classes.dex
-SHA1-Digest: +N17v9bZyVNKwgm8ulfdLwhtUfs=
+SHA1-Digest: p1EfDA7o9BfHTTTWNGI87BdOazQ=
 
 Name: lib/armeabi-v7a/libabcdefgh.so
 SHA1-Digest: 9xgWxKgPu3tjv9ZCXZjbUTrssAo=
@@ -69,7 +69,7 @@ Name: lib/armeabi-v7a/libjpgt.so
 SHA1-Digest: crfyE58tb9VxSehDBlB+iKCzLtc=
 
 Name: lib/armeabi-v7a/liblazy_dict.so
-SHA1-Digest: 3azjBgnIDxJxWm9yKZYmZYCpKOc=
+SHA1-Digest: gdR7o9ezk8mFHm0BRlQvx0enBBI=
 
 Name: lib/armeabi-v7a/liblept.so
 SHA1-Digest: svChrZ4N/lpNp+nuMvFZckkO4cM=
