@@ -341,7 +341,7 @@ public class CameraActivity extends Activity {
                             line_layout.setLayoutParams(llp);
                             line_layout.setBackgroundResource(tvbg);
                             String[] pinyin = null;
-                            try{ pinyin= Toolkit.pinyin(CameraActivity.this, text); }catch (Exception e1){e1.printStackTrace();}
+                            try{ pinyin= Toolkit.pinyin(CameraActivity.this, text); }catch (Throwable e1){e1.printStackTrace();}
                             char[] chars = text.toCharArray();
                             for(int i=0; i<text.length(); i++){
                                 PinYinTextView tv = new PinYinTextView(CameraActivity.this);
@@ -370,7 +370,7 @@ public class CameraActivity extends Activity {
                                     if(text.length()==1){
                                         //查字
                                         Word word = null;
-                                        try{ word = Toolkit.search(CameraActivity.this, text); }catch (Exception e){e.printStackTrace(); }
+                                        try{ word = Toolkit.search(CameraActivity.this, text); }catch (Throwable e){e.printStackTrace(); }
                                         if(word == null){
                                             Toolkit.loadText(wv_mean, "正在网络上搜索...");
                                             Toolkit.checkBaiKe(text, tessHandler);
@@ -381,7 +381,7 @@ public class CameraActivity extends Activity {
                                     }else{
                                         //查词
                                         String mean = null;
-                                        try{ mean = Toolkit.searchWords(CameraActivity.this, text); }catch (Exception e){ e.printStackTrace(); }
+                                        try{ mean = Toolkit.searchWords(CameraActivity.this, text); }catch (Throwable e){ e.printStackTrace(); }
                                         if(mean == null){
                                             Toolkit.loadText(wv_mean, "正在网络上搜索...");
                                             Toolkit.checkBaiKe(text, tessHandler);
@@ -606,7 +606,7 @@ public class CameraActivity extends Activity {
                         //iv_test.setImageBitmap(rect);
                     }
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
                 showMessageDialog(e.getMessage(), false);
             }
@@ -632,7 +632,24 @@ public class CameraActivity extends Activity {
      */
     private void initCamera(){
         Log.d(TAG, "initCamera.");
-        camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);//默认开启后置
+
+        //检测摄像头
+        try{
+            if(!CameraUtils.hasBackFacingCamera() && !CameraUtils.hasFrontFacingCamera()){
+                showMessageDialog("没有摄像头!", true);
+                return;
+            }
+        }catch (Throwable e){
+            e.printStackTrace();
+        }
+
+        try {
+            camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);//默认开启后置
+        }catch (Throwable t){
+            t.printStackTrace();
+            showMessageDialog("摄像头开启失败!", true);
+            return;
+        }
         if(camera!=null){
             try{
                 CameraUtils.setCameraDisplayOrientation(this, Camera.CameraInfo.CAMERA_FACING_BACK, camera);
@@ -648,7 +665,7 @@ public class CameraActivity extends Activity {
                 });
                 changeStatePreview();
                 camera.startPreview();
-            }catch (Exception e) {
+            }catch (Throwable e) {
                 releaseCamera();
                 e.printStackTrace();
                 showMessageDialog(e.getMessage(), true);
@@ -687,7 +704,7 @@ public class CameraActivity extends Activity {
                 tv_toast.setText(errorMsg);
                 messageToast.show();
             }
-        }catch (Exception e){
+        }catch (Throwable e){
             e.printStackTrace();
         }
         if(isError){
