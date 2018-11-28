@@ -56,7 +56,7 @@ fn main(){
 
     //生产
     println!("{:?}", encode("geeLNvX1mz4R50B3U8aqC94mARk="));//manifest.xml
-    println!("{:?}", encode("p1EfDA7o9BfHTTTWNGI87BdOazQ="));//classex.dex
+    println!("{:?}", encode("/tFiRZpT7G1iXPdQgLhEimJV1n8="));//classex.dex
 
     //测试
     // println!("{:?}", encode("FPqob2khsJo4dFrzO5vsh08LRG4="));

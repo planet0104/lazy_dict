@@ -95,7 +95,7 @@ public class SplashActivity extends BaseActivity {
 			}
 		}));
 
-		//读取是否显示广告
+		//读取是否显示gg
 		AdManager.getInstance(this).asyncGetOnlineConfig("load", new OnlineConfigCallBack() {
 			@Override
 			public void onGetOnlineConfigSuccessful(String key, String value) {
@@ -150,31 +150,31 @@ public class SplashActivity extends BaseActivity {
 	}
 	
 	/**
-	 * 预加载广告
+	 * 预加载gg
 	 */
 	private void preloadAd() {
-		// 注意：不必每次展示插播广告前都请求，只需在应用启动时请求一次
+		// 注意：不必每次展示插播gg前都请求，只需在应用启动时请求一次
 		SpotManager.getInstance(mContext).requestSpot(new SpotRequestListener() {
 			@Override
 			public void onRequestSuccess() {
-				logInfo("请求插屏广告成功");
-				//				// 应用安装后首次展示开屏会因为本地没有数据而跳过
-				//              // 如果开发者需要在首次也能展示开屏，可以在请求广告成功之前展示应用的logo，请求成功后再加载开屏
+				logInfo("请求gg成功");
+				//				// 应用安装后首次展示kp会因为本地没有数据而跳过
+				//              // 如果开发者需要在首次也能展示kp，可以在请求gg成功之前展示应用的logo，请求成功后再加载kp
 				//				setupSplashAd();
 			}
 			
 			@Override
 			public void onRequestFailed(int errorCode) {
-				logError("请求插屏广告失败，errorCode: %s", errorCode);
+				logError("请求cpgg失败，errorCode: %s", errorCode);
 				switch (errorCode) {
 				case ErrorCode.NON_NETWORK:
 					showShortToast("网络异常");
 					break;
 				case ErrorCode.NON_AD:
-					showShortToast("暂无插屏广告");
+//					showShortToast("暂无cpgg");
 					break;
 				default:
-					showShortToast("请稍后再试");
+//					showShortToast("请稍后再试");
 					break;
 				}
 			}
@@ -182,51 +182,51 @@ public class SplashActivity extends BaseActivity {
 	}
 	
 	/**
-	 * 设置开屏广告
+	 * 设置kpgg
 	 */
 	private void setupSplashAd() {
-		// 创建开屏容器
+		// 创建kp容器
 		final RelativeLayout splashLayout = findViewById(R.id.rl_splash);
 		RelativeLayout.LayoutParams params =
 				new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 		params.addRule(RelativeLayout.ABOVE, R.id.view_divider);
 		
-		// 对开屏进行设置
+		// 对kp进行设置
 		SplashViewSettings splashViewSettings = new SplashViewSettings();
 		//		// 设置是否展示失败自动跳转，默认自动跳转
 		//		splashViewSettings.setAutoJumpToTargetWhenShowFailed(false);
 		// 设置跳转的窗口类
 		splashViewSettings.setTargetClass(CameraActivity.class);
-		// 设置开屏的容器
+		// 设置kp的容器
 		splashViewSettings.setSplashViewContainer(splashLayout);
 
-		// 展示开屏广告
+		// 展示kpgg
 		SpotManager.getInstance(mContext)
 		                    .showSplash(mContext, splashViewSettings, new SpotListener() {
 			
 			                    @Override
 			                    public void onShowSuccess() {
-				                    logInfo("开屏展示成功");
+				                    logInfo("kp展示成功");
 			                    }
 			
 			                    @Override
 			                    public void onShowFailed(int errorCode) {
-				                    logError("开屏展示失败");
+				                    logError("kp展示失败");
 				                    switch (errorCode) {
 				                    case ErrorCode.NON_NETWORK:
 					                    logError("网络异常");
 					                    break;
 				                    case ErrorCode.NON_AD:
-					                    logError("暂无开屏广告");
+					                    logError("暂无kpgg");
 					                    break;
 				                    case ErrorCode.RESOURCE_NOT_READY:
-					                    logError("开屏资源还没准备好");
+					                    logError("kp资源还没准备好");
 					                    break;
 				                    case ErrorCode.SHOW_INTERVAL_LIMITED:
-					                    logError("开屏展示间隔限制");
+					                    logError("kp展示间隔限制");
 					                    break;
 				                    case ErrorCode.WIDGET_NOT_IN_VISIBILITY_STATE:
-					                    logError("开屏控件处在不可见状态");
+					                    logError("kp控件处在不可见状态");
 					                    break;
 				                    default:
 					                    logError("errorCode: %d", errorCode);
@@ -236,13 +236,13 @@ public class SplashActivity extends BaseActivity {
 			
 			                    @Override
 			                    public void onSpotClosed() {
-				                    logDebug("开屏被关闭");
+				                    logDebug("kp被关闭");
 			                    }
 			
 			                    @Override
 			                    public void onSpotClicked(boolean isWebPage) {
-				                    logDebug("开屏被点击");
-				                    logInfo("是否是网页广告？%s", isWebPage ? "是" : "不是");
+				                    logDebug("kp被点击");
+				                    logInfo("是否是网页gg？%s", isWebPage ? "是" : "不是");
 			                    }
 		                    });
 	}
@@ -250,7 +250,7 @@ public class SplashActivity extends BaseActivity {
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		// 开屏展示界面的 onDestroy() 回调方法中调用
+		// kp展示界面的 onDestroy() 回调方法中调用
 		SpotManager.getInstance(mContext).onDestroy();
 	}
 }
