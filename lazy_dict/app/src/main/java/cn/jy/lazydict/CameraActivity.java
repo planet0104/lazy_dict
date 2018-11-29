@@ -144,44 +144,53 @@ public class CameraActivity extends Activity {
             }
 
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String op = request.getUrl().toString();
-                Log.d(TAG, "op="+op);
-                if(op.contains("up.search")){
-                    if(bitmapRect==null){
-                        showMessageDialog("图片有误，请重新拍照识别。", false);
-                    }else{
-                        //高级搜索
-                        ll_mean.setVisibility(View.GONE);
-                        ll_lines.removeAllViews();
-                        Toolkit.upSearch(CameraActivity.this, bitmapRect, tessHandler);
+            public boolean shouldOverrideUrlLoading(WebView view, final WebResourceRequest request) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try{
+                            String op = request.getUrl().toString();
+                            Log.d(TAG, "op="+op);
+                            if(op.contains("up.search")){
+                                if(bitmapRect==null){
+                                    showMessageDialog("图片有误，请重新拍照识别。", false);
+                                }else{
+                                    //高级搜索
+                                    ll_mean.setVisibility(View.GONE);
+                                    ll_lines.removeAllViews();
+                                    Toolkit.upSearch(CameraActivity.this, bitmapRect, tessHandler);
+                                }
+                                return;
+                            }
+                            if(op.contains("split.search")){
+                                //如果正在识别中，不进行自动拆分，只有用户点击的时候才自动拆分
+                                if(animDot.isRunning()){
+                                    showMessageDialog("正在查询中，请稍后再试", false);
+                                }else{
+                                    tessHandler.sendEmptyMessage(Toolkit.MSG_SPLIT_SEARCH);
+                                }
+                                return;
+                            }
+                            if(op.contains("click.help")){
+                                Log.d(TAG, "打开帮助.");
+                                showMenu();
+                                return;
+                            }
+                            if(op.contains("click.up_search")){
+                                Log.d(TAG, "打开高级搜索.");
+                                upSearch();
+                                return;
+                            }
+                            startView = true;
+                            Intent intent = new Intent();
+                            intent.setAction("android.intent.action.VIEW");
+                            intent.setData(request.getUrl());
+                            startActivity(intent);
+                        }catch (Throwable e){
+                            e.printStackTrace();
+                        }
                     }
-                    return true;
-                }
-                if(op.contains("split.search")){
-                    //如果正在识别中，不进行自动拆分，只有用户点击的时候才自动拆分
-                    if(animDot.isRunning()){
-                        showMessageDialog("正在查询中，请稍后再试", false);
-                    }else{
-                        tessHandler.sendEmptyMessage(Toolkit.MSG_SPLIT_SEARCH);
-                    }
-                    return true;
-                }
-                if(op.contains("click.help")){
-                    Log.d(TAG, "打开帮助.");
-                    showMenu();
-                    return true;
-                }
-                if(op.contains("click.up_search")){
-                    Log.d(TAG, "打开高级搜索.");
-                    upSearch();
-                    return  true;
-                }
-                startView = true;
-                Intent intent = new Intent();
-                intent.setAction("android.intent.action.VIEW");
-                intent.setData(request.getUrl());
-                startActivity(intent);
+                });
                 return true;
             }
         });
@@ -585,25 +594,43 @@ public class CameraActivity extends Activity {
             android.hardware.Camera.getCameraInfo(Camera.CameraInfo.CAMERA_FACING_BACK, info);
 
             Camera.Size size = camera.getParameters().getPreviewSize();
-            long t = System.currentTimeMillis();
             try {
-                capture = Toolkit.decodeYUV420SP(CameraActivity.this, previewFrame, size.width, size.height, info.orientation);
-                iv_capture.setImageBitmap(capture);
-                Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
-                releaseCamera();//释放相机
-                changeStateCapture();//切换到截图状态
-                iv_area.post(new Runnable() {
+                btn_capture.setClickable(false);
+                btn_capture.setEnabled(false);
+                final long t = System.currentTimeMillis();
+                Toolkit.decodeYUV420SP(CameraActivity.this, previewFrame, size.width, size.height, info.orientation, new Toolkit.DecodeCB() {
                     @Override
-                    public void run() {
-                        Rect visibleRect = Toolkit.getLocationInParent(iv_area, fl_preview);
-                        bitmapRect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
-                        iv_area.setImageBitmap(bitmapRect);
-                        //移动电视到顶部
-                        Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
-                        int tvRectTop = tvRect.top+Toolkit.dip2px(CameraActivity.this, 40);
-                        sl_clip_rect.smoothScrollTo(0, tvRectTop, 800);
-                        Toolkit.tessRecognize(CameraActivity.this, bitmapRect, tessHandler);
-                        //iv_test.setImageBitmap(rect);
+                    public void success(Bitmap bitmap) {
+                        btn_capture.setClickable(true);
+                        btn_capture.setEnabled(true);
+                        capture = bitmap;
+                        iv_capture.setImageBitmap(capture);
+                        Log.d(TAG, "转换耗时:"+(System.currentTimeMillis()-t)+"ms");
+                        releaseCamera();//释放相机
+                        changeStateCapture();//切换到截图状态
+                        iv_area.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Rect visibleRect = Toolkit.getLocationInParent(iv_area, fl_preview);
+                                bitmapRect = Bitmap.createBitmap(iv_capture.getDrawingCache(), visibleRect.left, visibleRect.top, visibleRect.width(), visibleRect.height());
+                                iv_area.setImageBitmap(bitmapRect);
+                                //移动电视到顶部
+                                Rect tvRect = Toolkit.getLocationInParent(sl_clip_rect.getChildAt(0), sl_clip_rect);
+                                int tvRectTop = tvRect.top+Toolkit.dip2px(CameraActivity.this, 40);
+                                sl_clip_rect.smoothScrollTo(0, tvRectTop, 800);
+                                Toolkit.tessRecognize(CameraActivity.this, bitmapRect, tessHandler);
+                                //iv_test.setImageBitmap(rect);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void error(Throwable t) {
+                        btn_capture.setClickable(true);
+                        btn_capture.setEnabled(true);
+                        String error = "转换出错";
+                        if(t!=null) error = t.getMessage();
+                        showMessageDialog(error, false);
                     }
                 });
             } catch (Throwable e) {
