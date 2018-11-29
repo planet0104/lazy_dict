@@ -462,7 +462,7 @@ pub fn get_rect<'a>(buffer: &[u8], bpp:usize, stride:u32, rect:&Rect) -> Result<
 /// 
 /// # Return
 /// - (u8, Vec<u8>) (阈值, 每个像素对应灰度)
-pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bpp: usize) -> (u8, Vec<u8>){
+pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bpp: usize) -> Option<(u8, Vec<u8>)>{
     //统计灰度直方图数据
     let mut gray_count = vec![0; 256];
     let mut gray_sum = 0;
@@ -471,12 +471,14 @@ pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bp
     //循环每个像素统计灰度总和和灰度平均值
     let mut i = 0;
     for row in pixels.chunks(stride){
-        for pixel in row.get(0..width*bpp).unwrap().chunks(bpp){
-            let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
-            gray_count[gray] += 1;
-            gray_sum += gray;
-            gray_values[i] = gray as u8;    
-            i += 1;
+        if let Some(arr) = row.get(0..width*bpp){
+            for pixel in arr.chunks(bpp){
+                let gray =  (77*(pixel[0] as usize) + 150*(pixel[1] as usize) + 29*(pixel[2] as usize)+ 128) >> 8;
+                gray_count[gray] += 1;
+                gray_sum += gray;
+                gray_values[i] = gray as u8;    
+                i += 1;
+            }
         }
     }
 
@@ -489,8 +491,8 @@ pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bp
     };
 
     // (2) 以像素平均值为分界点，分别求出左、右部分的最大值的位置
-    let mut left_max_pos = gray_count.get(0..avg as usize).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0;
-    let mut right_max_pos = gray_count.get(avg as usize..gray_count.len()).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0+avg as usize;
+    let mut left_max_pos = gray_count.get(0..avg as usize)?.iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) })?.0;
+    let mut right_max_pos = gray_count.get(avg as usize..gray_count.len())?.iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) })?.0+avg as usize;
 
     // (3) 若两峰位置相距较近(在标准偏差范围内)，说明该直方图的双峰中有一个峰很低，因此需要另寻低峰的位置，否则至第(7)步
     let dist = (right_max_pos as isize-left_max_pos as isize).abs(); //位置距离
@@ -504,15 +506,15 @@ pub fn calc_threshold(pixels: &[u8], width:usize, height:usize, stride:usize, bp
         // (6) 重新求出大、小峰的位置
         if mid_value as i32>avg{//小峰在大峰左边
             //从原先左峰往左边移动sigma距离，寻找最高峰
-            left_max_pos = gray_count.get(0..(left_max_pos-sigma as usize)).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0;
+            left_max_pos = gray_count.get(0..(left_max_pos-sigma as usize))?.iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) })?.0;
         }else{//小峰在大峰右边
             //从原先右峰往右边移动sigma距离，寻找最高峰
-            right_max_pos = gray_count.get((right_max_pos+sigma as usize)..gray_count.len()).unwrap().iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) }).unwrap().0+(right_max_pos+sigma as usize);
+            right_max_pos = gray_count.get((right_max_pos+sigma as usize)..gray_count.len())?.iter().enumerate().max_by(|(_, v1), (_, v2)|{ v1.cmp(v2) })?.0+(right_max_pos+sigma as usize);
         }
-        ((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values)
+        Some(((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values))
     }else{
         // (7) 以两峰位置的中点做为阈值
-        ((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values)
+        Some(((left_max_pos + (right_max_pos-left_max_pos)/2) as u8, gray_values))
     }
 }
 
@@ -562,10 +564,10 @@ pub fn edge_detect_gray(gray_values:&[u8], output:&mut [u16], width: usize, thre
 /// - `bpl`: 每行像素占用字节
 /// - `bpp`: 每个像素占用字节
 /// - `thresholds`: 阈值
-pub fn binary(gray_values:&[u8], out:&mut [u8], stride:usize, bpl: usize, bpp: usize, threshold:u8){
+pub fn binary(gray_values:&[u8], out:&mut [u8], stride:usize, bpl: usize, bpp: usize, threshold:u8) -> Option<()>{
     let mut i = 0;
     for row in out.chunks_mut(stride){
-        for pixel in row.get_mut(0..bpl).unwrap().chunks_mut(bpp){
+        for pixel in row.get_mut(0..bpl)?.chunks_mut(bpp){
             if gray_values[i] >= threshold{
                 pixel[0] = 0;
                 pixel[1] = 0;
@@ -578,6 +580,7 @@ pub fn binary(gray_values:&[u8], out:&mut [u8], stride:usize, bpl: usize, bpp: u
             i += 1;
         }
     }
+    Some(())
 }
 
 #[derive(Debug)]
@@ -595,7 +598,7 @@ impl SplitInfo{
     }
 }
 
-pub fn cut(edges:&[u16], width: usize, height: usize) -> (Vec<u16>, usize, usize, usize, usize){
+pub fn cut(edges:&[u16], width: usize, height: usize) -> Option<(Vec<u16>, usize, usize, usize, usize)>{
     let mut new_edges = vec![];
     //首先裁剪上下左右的黑白像素, 将 edges替换
     //去除上黑边
@@ -623,7 +626,7 @@ pub fn cut(edges:&[u16], width: usize, height: usize) -> (Vec<u16>, usize, usize
     //去除左黑边
     let tp = edges.len();//总长度
     for x in 0..width{
-        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        let sum:u16 = edges.get(x..tp)?.chunks(width).map(|slice| slice[0]).sum();
         if sum == height as u16{
             left += 1;
         }else{
@@ -633,7 +636,7 @@ pub fn cut(edges:&[u16], width: usize, height: usize) -> (Vec<u16>, usize, usize
 
     //去除右黑边
     for x in (0..width).rev(){
-        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        let sum:u16 = edges.get(x..tp)?.chunks(width).map(|slice| slice[0]).sum();
         if sum == height as u16{
             right -= 1;
         }else{
@@ -642,26 +645,26 @@ pub fn cut(edges:&[u16], width: usize, height: usize) -> (Vec<u16>, usize, usize
     }
 
     if right==0 || bottom==0{//无效检测
-        return (new_edges, 0, 0, 0, 0);
+        return Some((new_edges, 0, 0, 0, 0));
     }
 
     let (new_width, new_height) = (right-left, bottom-top);
     //获取裁剪区域的像素数据
     //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
-    for slice in edges.get(width*top+left..width*(bottom-1)+right).unwrap().chunks(width){
+    for slice in edges.get(width*top+left..width*(bottom-1)+right)?.chunks(width){
         //取宽度对应的数据
         //println!("{:?}", slice.get(0..(right-left)));
-        new_edges.extend_from_slice(slice.get(0..(right-left)).unwrap());
+        new_edges.extend_from_slice(slice.get(0..(right-left))?);
     }
-    (new_edges, left, top, new_width, new_height)
+    Some((new_edges, left, top, new_width, new_height))
 }
 
 //分割成行
-pub fn split_lines(edges:&mut [u16], width: usize, height: usize) -> Vec<SplitInfo>{
+pub fn split_lines(edges:&mut [u16], width: usize, height: usize) -> Option<Vec<SplitInfo>>{
     let mut infos = vec![];
-    let (new_edges, left_r1, top_r1, new_width, new_height) = cut(&edges, width, height);
+    let (new_edges, left_r1, top_r1, new_width, new_height) = cut(&edges, width, height)?;
     if new_edges.len()==0{
-        return infos;
+        return Some(infos);
     }
 
     //------------------ 水平分割线 ------------
@@ -694,18 +697,18 @@ pub fn split_lines(edges:&mut [u16], width: usize, height: usize) -> Vec<SplitIn
         //获取字块像素
         let mut split_edges = vec![];
         //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
-        for slice in new_edges.get(new_width*top_r2+left_r2..new_width*(split_bottom-1)+split_right).unwrap().chunks(new_width){
+        for slice in new_edges.get(new_width*top_r2+left_r2..new_width*(split_bottom-1)+split_right)?.chunks(new_width){
             //取宽度对应的数据
-            split_edges.extend_from_slice(slice.get(0..split_width).unwrap());
+            split_edges.extend_from_slice(slice.get(0..split_width)?);
         }
         //裁剪边缘
-        let (cut_edges, left_r3, top_r3, cut_width, cut_height) = cut(&split_edges, split_width, split_height);
+        let (cut_edges, left_r3, top_r3, cut_width, cut_height) = cut(&split_edges, split_width, split_height)?;
         if cut_edges.len()>0{
             infos.push(SplitInfo::new(left_r1+left_r2+left_r3, top_r1+top_r2+top_r3, cut_width, cut_height));
         }
     }
 
-    infos
+    Some(infos)
 }
 
 /// 分割图片过滤
@@ -717,8 +720,8 @@ pub fn split_lines(edges:&mut [u16], width: usize, height: usize) -> Vec<SplitIn
 /// height edges图片高度
 /// 返回:
 /// 切块坐标信息数组
-pub fn split(parent_left:usize, parent_top:usize, edges:&mut [u16], width: usize, height: usize) -> Vec<SplitInfo>{
-    let infos = split_filter(parent_left, parent_top, edges, width, height);
+pub fn split(parent_left:usize, parent_top:usize, edges:&mut [u16], width: usize, height: usize) -> Option<Vec<SplitInfo>>{
+    let infos = split_filter(parent_left, parent_top, edges, width, height)?;
     //过滤比例不对的方块(和正方形差距太远的)
     let mut new_infos = vec![];
     let mut total_area = 0;
@@ -742,12 +745,12 @@ pub fn split(parent_left:usize, parent_top:usize, edges:&mut [u16], width: usize
             new_infos.push(SplitInfo::new(ifo.left, ifo.top, ifo.width, ifo.height));
         }
     }
-    new_infos
+    Some(new_infos)
 }
 
 /// 分割图片
 /// 
-pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width: usize, height: usize) -> Vec<SplitInfo>{
+pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width: usize, height: usize) -> Option<Vec<SplitInfo>>{
     let mut infos = vec![];
 
     //打通纵向连通率比较低的竖线
@@ -785,7 +788,7 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
     //去除左黑边
     let tp = edges.len();//总长度
     for x in 0..width{
-        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        let sum:u16 = edges.get(x..tp)?.chunks(width).map(|slice| slice[0]).sum();
         if sum == height as u16{
             left += 1;
         }else{
@@ -794,7 +797,7 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
     }
     //去除右黑边
     for x in (0..width).rev(){
-        let sum:u16 = edges.get(x..tp).unwrap().chunks(width).map(|slice| slice[0]).sum();
+        let sum:u16 = edges.get(x..tp)?.chunks(width).map(|slice| slice[0]).sum();
         if sum == height as u16{
             right -= 1;
         }else{
@@ -804,16 +807,16 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
 
     //println!("{},{},{},{}", left, top, right, bottom);
     if right==0 || bottom==0{//无效检测
-        return infos;
+        return Some(infos);
     }
 
     //获取裁剪区域的像素数据
     let mut new_edges = vec![];
     //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
-    for slice in edges.get(width*top+left..width*(bottom-1)+right).unwrap().chunks(width){
+    for slice in edges.get(width*top+left..width*(bottom-1)+right)?.chunks(width){
         //取宽度对应的数据
         //println!("{:?}", slice.get(0..(right-left)));
-        new_edges.extend_from_slice(slice.get(0..(right-left)).unwrap());
+        new_edges.extend_from_slice(slice.get(0..(right-left))?);
     }
 
     let (new_width, new_height) = (right-left, bottom-top);
@@ -888,15 +891,16 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
                 //获取字块像素
                 let mut split_edges = vec![];
                 //宽度xTOP+LEFT ~ 宽度x(BOTTOM-1)+RIGHT
-                for slice in new_edges.get(new_width*split_top+split_left..new_width*(split_bottom-1)+split_right).unwrap().chunks(new_width){
+                for slice in new_edges.get(new_width*split_top+split_left..new_width*(split_bottom-1)+split_right)?.chunks(new_width){
                     //取宽度对应的数据
-                    split_edges.extend_from_slice(slice.get(0..split_width).unwrap());
+                    split_edges.extend_from_slice(slice.get(0..split_width)?);
                 }
-                let sss = split_filter(parent_left+left+split_left, parent_top+top+split_top, &mut split_edges, split_width, split_height);
-                //递归继续分割
-                //println!("{:?}, len={}",sss, sss.len());
-                if sss.len()>0{
-                    sub_infos.push(sss);
+                if let Some(sss) = split_filter(parent_left+left+split_left, parent_top+top+split_top, &mut split_edges, split_width, split_height){
+                    //递归继续分割
+                    //println!("{:?}, len={}",sss, sss.len());
+                    if sss.len()>0{
+                        sub_infos.push(sss);
+                    }
                 }
             }
         }
@@ -959,7 +963,7 @@ pub fn split_filter(parent_left:usize, parent_top:usize, edges:&mut [u16], width
         new_infos.push(SplitInfo::new(a.left, a.top, a.width, a.height));
         i += 1;
     }
-    new_infos
+    Some(new_infos)
 }
 
 

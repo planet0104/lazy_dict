@@ -24,6 +24,6 @@ sha1 = "0.6.0"
 crate-type = ["cdylib"]
 
 [profile.release]
-lto = true
-panic = 'abort'
-opt-level = 's'
+# lto = true
+# panic = 'abort'
+# opt-level = 's'

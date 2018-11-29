@@ -41,6 +41,11 @@ public class Toolkit {
         System.loadLibrary("lazy_dict");
     }
 
+    interface  DecodeCB{
+        void success(Bitmap bitmap);
+        void error(Throwable t);
+    }
+
     /**
      * YUV420SP转Bitmap
      * @param data
@@ -50,6 +55,25 @@ public class Toolkit {
      * @return
      */
     public static native Bitmap decodeYUV420SP(Context activity, byte[] data, int width, int height, int cameraOrientation) throws Exception;
+
+    /**
+     * yuv420转bitmap
+     * @param activity
+     * @param data
+     * @param width
+     * @param height
+     * @param cameraOrientation
+     * @param decodeCB
+     */
+    public static void decodeYUV420SP(Context activity, byte[] data, int width, int height, int cameraOrientation, DecodeCB decodeCB){
+        try{
+            decodeCB.success(decodeYUV420SP(activity, data, width, height, cameraOrientation));
+        }catch (Throwable e){
+            e.printStackTrace();
+            decodeCB.error(e);
+        }
+    }
+
 
     /**
      * 二值化

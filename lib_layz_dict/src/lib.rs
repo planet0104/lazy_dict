@@ -171,9 +171,12 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_binary<'a>(env: JNIEnv, _activity: JCl
 				}
 				//---------------------------------------
 				//计算整张图的阈值
-				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
-				imgtool::binary(&gray_values, &mut pixels, info.stride as usize, info.width as usize*4, 4, threshold);
-				Ok(())
+				if let Some((threshold, gray_values)) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4){
+					imgtool::binary(&gray_values, &mut pixels, info.stride as usize, info.width as usize*4, 4, threshold);
+					Ok(())
+				}else{
+					Err("错误".to_string())
+				}
 			}
 		})?;
 		Ok(())
@@ -198,22 +201,25 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_calcThreshold<'a>(env: JNIEnv, _activi
 				Err("图片格式只支持RGBA_8888!".to_string())
 			}else{
 				//计算整张图的阈值
-				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
-				let mut gray_count = vec![0; 256];
-				for chs in &gray_values{
-					gray_count[*chs as usize] += 1;
+				if let Some((threshold, gray_values)) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4){
+					let mut gray_count = vec![0; 256];
+					for chs in &gray_values{
+						gray_count[*chs as usize] += 1;
+					}
+					//debug!("计算阈值:{} gray_count={:?}", threshold, gray_count);
+					let grays = env.byte_array_from_slice(&gray_values).map_err(mje)?;
+					obj = Some(env.new_object("cn/jy/lazydict/ThresholdGray", "(IIII[B)V",
+					&[
+						JValue::from(threshold as i32),
+						JValue::from(info.width as i32),
+						JValue::from(info.height as i32),
+						JValue::from(4),
+						JValue::from(JObject::from(grays)),
+					]).map_err(mje)?.into_inner());
+					Ok(())
+				}else{
+					Err("错误!".to_string())
 				}
-				//debug!("计算阈值:{} gray_count={:?}", threshold, gray_count);
-				let grays = env.byte_array_from_slice(&gray_values).map_err(mje)?;
-				obj = Some(env.new_object("cn/jy/lazydict/ThresholdGray", "(IIII[B)V",
-				&[
-					JValue::from(threshold as i32),
-					JValue::from(info.width as i32),
-					JValue::from(info.height as i32),
-					JValue::from(4),
-					JValue::from(JObject::from(grays)),
-				]).map_err(mje)?.into_inner());
-				Ok(())
 			}
 		})?;
 		Ok(())
@@ -397,14 +403,16 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 				Err("图片格式只支持RGBA_8888!".to_string())
 			}else{
 				//计算阈值
-				let (threshold, gray_values) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4);
-				//边缘检测
+				if let Some((threshold, gray_values)) = imgtool::calc_threshold(&pixels, info.width as usize, info.height as usize, info.stride as usize, 4){
+					//边缘检测
 				let mut edges = vec![1; (info.width*info.height) as usize]; //1为背景, 0为边缘
 				imgtool::edge_detect_gray(&gray_values, &mut edges, info.width as usize, threshold);
 				//分割文字块
 				let mut arr = vec![];
-				for sub_rect in imgtool::split_lines(&mut edges, info.width as usize, info.height as usize){
-					arr.push(jni_graphics::new_rectf(&env, sub_rect.left as f32, sub_rect.top as f32, (sub_rect.left+sub_rect.width) as f32, (sub_rect.top+sub_rect.height) as f32).map_err(mje)?.into_inner());
+				if let Some(split_lines) = imgtool::split_lines(&mut edges, info.width as usize, info.height as usize){
+					for sub_rect in split_lines{
+						arr.push(jni_graphics::new_rectf(&env, sub_rect.left as f32, sub_rect.top as f32, (sub_rect.left+sub_rect.width) as f32, (sub_rect.top+sub_rect.height) as f32).map_err(mje)?.into_inner());
+					}
 				}
 
 				let values_array = env.new_object_array(
@@ -419,6 +427,9 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 
 				rects = Some(values_array);
 				Ok(())
+				}else{
+					Err("错误!".to_string())
+				}
 			}
 		})?;
 		Ok(())
@@ -435,57 +446,57 @@ pub extern fn Java_cn_jy_lazydict_Toolkit_split<'a>(env: JNIEnv, _activity: JCla
 }
 
 //根据坐标选择一个文字块
-#[no_mangle]
-pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _activity: JClass, obj:JObject, x:jint, y:jint) -> jni::sys::jobject{
-	let mje = |err|{ format!("getCharacterRect {:?}", err) };
-	let mut select_rect = None;
-	let result = (||->Result<(), String> {
-		//灰度图信息
-		let all_gray_values = env.convert_byte_array(env.get_field(obj, "grays", "[B").map_err(mje)?.l().map_err(mje)?.into_inner()).map_err(mje)?;
-		let threshold = env.get_field(obj, "threshold", "I").map_err(mje)?.i().map_err(mje)? as u8;
-		let width = env.get_field(obj, "width", "I").map_err(mje)?.i().map_err(mje)?;
-		// let height = env.get_field(obj, "height", "I").map_err(mje)?.i().map_err(mje)?;
-		// let bpp = env.get_field(obj, "bpp", "I").map_err(mje)?.i().map_err(mje)?;
-		let mut gray_count = vec![0; 256];
-		for chs in &all_gray_values{
-			gray_count[*chs as usize] += 1;
-		}
+// #[no_mangle]
+// pub extern fn Java_cn_jy_lazydict_Toolkit_getCharacterRect<'a>(env: JNIEnv, _activity: JClass, obj:JObject, x:jint, y:jint) -> jni::sys::jobject{
+// 	let mje = |err|{ format!("getCharacterRect {:?}", err) };
+// 	let mut select_rect = None;
+// 	let result = (||->Result<(), String> {
+// 		//灰度图信息
+// 		let all_gray_values = env.convert_byte_array(env.get_field(obj, "grays", "[B").map_err(mje)?.l().map_err(mje)?.into_inner()).map_err(mje)?;
+// 		let threshold = env.get_field(obj, "threshold", "I").map_err(mje)?.i().map_err(mje)? as u8;
+// 		let width = env.get_field(obj, "width", "I").map_err(mje)?.i().map_err(mje)?;
+// 		// let height = env.get_field(obj, "height", "I").map_err(mje)?.i().map_err(mje)?;
+// 		// let bpp = env.get_field(obj, "bpp", "I").map_err(mje)?.i().map_err(mje)?;
+// 		let mut gray_count = vec![0; 256];
+// 		for chs in &all_gray_values{
+// 			gray_count[*chs as usize] += 1;
+// 		}
 
-		//选择 160x160的一块图像进行二值化
-		let rect = Rect::new(x as usize-80, y as usize-80, 160, 160);
-		let gray_values = imgtool::get_gray_rect(&all_gray_values, width, &rect)?;
-		let mut gray_count = vec![0; 256];
-		for chs in &gray_values{
-			gray_count[*chs as usize] += 1;
-		}
-		//边缘检测
-		let mut edges = vec![1; rect.width*rect.height]; //1为背景, 0为边缘
-		imgtool::edge_detect_gray(&gray_values, &mut edges, rect.width, threshold);
-		//根据edges分割
-		for sub_rect in imgtool::split(0, 0, &mut edges, rect.width, rect.height){
-			let (sleft, stop) = ((rect.left+sub_rect.left) as f32, (rect.top+sub_rect.top) as f32);
-			let (sright, sbottom) = (sleft+sub_rect.width as f32, stop+sub_rect.height as f32);
-			if sleft<x as f32 && sright>x as f32 && stop<y as f32 && sbottom>y as f32{
-				select_rect = Some(jni_graphics::new_rectf(&env, sleft, stop, sright, sbottom).map_err(mje)?.into_inner());		
-				break;
-			}
-		}
-		if select_rect.is_some(){
-			Ok(())
-		}else{
-			Err("没有匹配的区域".to_string())	
-		}
-	})();
+// 		//选择 160x160的一块图像进行二值化
+// 		let rect = Rect::new(x as usize-80, y as usize-80, 160, 160);
+// 		let gray_values = imgtool::get_gray_rect(&all_gray_values, width, &rect)?;
+// 		let mut gray_count = vec![0; 256];
+// 		for chs in &gray_values{
+// 			gray_count[*chs as usize] += 1;
+// 		}
+// 		//边缘检测
+// 		let mut edges = vec![1; rect.width*rect.height]; //1为背景, 0为边缘
+// 		imgtool::edge_detect_gray(&gray_values, &mut edges, rect.width, threshold);
+// 		//根据edges分割
+// 		for sub_rect in imgtool::split(0, 0, &mut edges, rect.width, rect.height){
+// 			let (sleft, stop) = ((rect.left+sub_rect.left) as f32, (rect.top+sub_rect.top) as f32);
+// 			let (sright, sbottom) = (sleft+sub_rect.width as f32, stop+sub_rect.height as f32);
+// 			if sleft<x as f32 && sright>x as f32 && stop<y as f32 && sbottom>y as f32{
+// 				select_rect = Some(jni_graphics::new_rectf(&env, sleft, stop, sright, sbottom).map_err(mje)?.into_inner());		
+// 				break;
+// 			}
+// 		}
+// 		if select_rect.is_some(){
+// 			Ok(())
+// 		}else{
+// 			Err("没有匹配的区域".to_string())	
+// 		}
+// 	})();
 
-	if result.is_err(){
-		let err = result.err();
-		error!("{:?}", &err);
-		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
-		JObject::null().into_inner()
-	}else{
-		select_rect.unwrap()
-	}
-}
+// 	if result.is_err(){
+// 		let err = result.err();
+// 		error!("{:?}", &err);
+// 		let _ = env.throw_new("java/lang/Exception", format!("{:?}", err));
+// 		JObject::null().into_inner()
+// 	}else{
+// 		select_rect.unwrap()
+// 	}
+// }
 
 //YUV420SP转Bitmap
 #[no_mangle]
