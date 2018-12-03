@@ -1,0 +1,64 @@
+apply plugin: 'com.android.application'
+
+android {
+    signingConfigs {
+        release {
+            keyAlias '123456'
+            keyPassword '123456'
+            storeFile file('C:/Users/days888/Documents/GitHub/lazy_dict/lazy_dict/lazy_dict.jks')
+            storePassword '123456'
+        }
+    }
+    compileSdkVersion 27
+    defaultConfig {
+        applicationId "cn.jy.lazydict"
+        minSdkVersion 15
+        targetSdkVersion 27
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.bg_ring.runner.AndroidJUnitRunner"
+        //只使用 armeabi-v7a
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
+    }
+    ext {
+        AD_APP_ID = '"ca-app-pub-1104879879255573~7114270821"'
+        BANNER_ID_0 = '"ca-app-pub-1104879879255573/6681018373"'
+        BANNER_ID_1 = '"ca-app-pub-1104879879255573/5921031080"'
+        BANNER_ID_DEBUG = '"ca-app-pub-3940256099942544/6300978111"'
+    }
+    buildTypes {
+        debug {
+            resValue "string", "banner_id_0", BANNER_ID_DEBUG
+            resValue "string", "banner_id_1", BANNER_ID_DEBUG
+            minifyEnabled false
+            buildConfigField 'String', 'AD_APP_ID', AD_APP_ID
+            manifestPlaceholders = [AD_APP_ID: AD_APP_ID]
+            signingConfig signingConfigs.release
+        }
+        release {
+            resValue "string", "banner_id_0", BANNER_ID_0
+            resValue "string", "banner_id_1", BANNER_ID_1
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            buildConfigField 'String', 'AD_APP_ID', AD_APP_ID
+            manifestPlaceholders = [AD_APP_ID: AD_APP_ID]
+            proguardFile 'C:/Users/days888/Documents/GitHub/lazy_dict/lazy_dict/app/proguard-rules.pro'
+            debuggable false
+            jniDebuggable false
+            signingConfig signingConfigs.release
+            renderscriptDebuggable false
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: '*.aar')
+    implementation fileTree(dir: 'libs', include: '*.jar')
+    implementation 'com.rmtheis:tess-two:9.0.0'
+    testImplementation 'junit:junit:4.12'
+    implementation 'com.squareup.okhttp3:okhttp:3.11.0'
+    implementation 'org.jsoup:jsoup:1.11.3'
+    implementation 'com.android.support:appcompat-v7:27.1.1'
+}
