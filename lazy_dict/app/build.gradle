@@ -3,10 +3,10 @@ apply plugin: 'com.android.application'
 android {
     signingConfigs {
         release {
-            keyAlias 'lazy_dict'
-            keyPassword 'knqh7nd&'
+            keyAlias '123456'
+            keyPassword '123456'
             storeFile file('C:/Users/days888/Documents/GitHub/lazy_dict/lazy_dict/lazy_dict.jks')
-            storePassword 'knqh7nd&'
+            storePassword '123456'
         }
     }
     compileSdkVersion 27
